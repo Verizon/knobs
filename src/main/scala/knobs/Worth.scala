@@ -5,6 +5,7 @@ import scalaz._
 /** A value that is either required or optional. */
 sealed trait Worth[A] {
   def map[B](f: A => B): Worth[B]
+  def worth: A
 }
 case class Required[A](worth: A) extends Worth[A] {
   def map[B](f: A => B): Worth[B] =

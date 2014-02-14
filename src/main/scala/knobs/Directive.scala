@@ -7,7 +7,9 @@ case class Bind(name: Name, value: CfgValue) extends Directive
 case class Group(name: Name, directives: List[Directive]) extends Directive
 
 /** A bound configuration value */
-sealed trait CfgValue
+sealed trait CfgValue {
+  def convertTo[A:Configured]: Option[A] = implicitly[Configured[A]].apply(this)
+}
 case class CfgBool(value: Boolean) extends CfgValue
 case class CfgText(value: String) extends CfgValue
 case class CfgNumber(value: Double) extends CfgValue

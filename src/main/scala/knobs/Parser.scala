@@ -134,7 +134,7 @@ object ConfigParser {
    * `$` character. The sequence `$(` begins a section to be interpolated,
    * and `)` ends it.
    */
-  def interp: Parser[List[Interpolation]] = {
+  lazy val interp: Parser[List[Interpolation]] = {
     def p(acc: List[Interpolation]): Parser[List[Interpolation]] = for {
       h <- takeWhile(_ != '$').map(Literal(_))
       rest = {
