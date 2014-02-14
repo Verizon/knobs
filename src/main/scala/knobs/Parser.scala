@@ -31,7 +31,10 @@ object ConfigParser {
 
   // Skip lines, comments, or horizontal white space
   lazy val skipLWS: Parser[Unit] = {
+    // `s` is what we're currently skipping, and `c` is the next character
     def go(s: Skip, c: Char) = (s, c) match {
+      // If we're skipping spaces and the next character is a space,
+      // keep skipping
       case (Space, c) if (c.isWhitespace) => Some(Space)
       case (Space, '#') => Some(Comment)
       case (Space, _) => None
@@ -47,7 +50,7 @@ object ConfigParser {
     def go(s: Skip, c: Char) = (s, c) match {
       case (Space, ' ') => Some(Space)
       case (Space, '\t') => Some(Space)
-      case (Space, '#') => Some(Space)
+      case (Space, '#') => Some(Comment)
       case (Space, _) => None
       case (Comment, '\r') => None
       case (Comment, '\n') => None
@@ -57,13 +60,13 @@ object ConfigParser {
   }
 
   lazy val ident: Parser[Name] = for {
-    n <- P.apply2(satisfy(c => Character.isAlphabetic(c)), takeWhile(isCont))(_ +: _)
+    n <- P.apply2(satisfy(c => Character.isLetter(c)), takeWhile(isCont))(_ +: _)
     _ <- when(n == "import") {
       err(s"reserved word ($n) used as an identifier"): Parser[Unit]
     }
   } yield n
 
-  def isCont(c: Char) = Character.isAlphabetic(c) || c == '_' || c == '-'
+  def isCont(c: Char) = Character.isLetterOrDigit(c) || c == '_' || c == '-'
   def isChar(b: Boolean, c: Char) =
     if (b) Some(false) else if (c == '"') None else Some(c == '\\')
 
