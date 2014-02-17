@@ -40,6 +40,13 @@ object Configured {
     }
   }
 
+  implicit val configuredBool: Configured[Boolean] = new Configured[Boolean] {
+    def apply(a: CfgValue) = a match {
+      case CfgBool(b) => Some(b)
+      case _ => None
+    }
+  }
+
   implicit def configuredList[A](implicit A: Configured[A]): Configured[List[A]] =
     new Configured[List[A]] {
       def apply(v: CfgValue) = v match {

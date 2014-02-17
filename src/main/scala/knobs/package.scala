@@ -6,23 +6,19 @@ import scalaz.syntax.traverse._
 
 package object knobs {
   type Name = String
-  type Path = String
-  type FilePath = String
-  type Loaded = Map[Worth[Path], List[Directive]]
+  type Loaded = Map[Worth[Resource], List[Directive]]
   type Env = Map[Name, CfgValue]
+  type Path = String
 
   private val P = ConfigParser
 
-  private def loadFiles(paths: List[Worth[Path]]): Task[Loaded] = {
-    def go(seen: Loaded, path: Worth[Path]): Task[Loaded] = {
-      def rewrap(n: Path) = path.map(_ => n)
-      def notSeen(n: Worth[Path]): Boolean = seen.get(n).isEmpty
-      val wpath = path.worth
+  def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
+    def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
+      def notSeen(n: Worth[Resource]): Boolean = seen.get(n).isEmpty
       for {
-        pathp <- interpolate(wpath, Map()).map(rewrap)
-        ds <- loadOne(pathp)
+        ds <- loadOne(path)
         seenp = seen + (path -> ds)
-        r <- Foldable[List].foldLeftM(importsOf(wpath, ds).filter(notSeen), seenp)(go)
+        r <- Foldable[List].foldLeftM(importsOf(path.worth, ds).filter(notSeen), seenp)(go)
       } yield r
     }
     Foldable[List].foldLeftM(paths, Map():Loaded)(go)
@@ -36,7 +32,7 @@ package object knobs {
    * first time they are opened, so you can speficy a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def load(files: List[Worth[FilePath]]): Task[Config] =
+  def load(files: List[Worth[Resource]]): Task[Config] =
     loadp(files.map(f => ("", f))).map(Config("", _))
 
   /**
@@ -44,24 +40,23 @@ package object knobs {
    * into named prefixes. If a prefix is non-empty, it should end in a
    * dot.
    */
-  def loadGroups(files: List[(Name, Worth[FilePath])]): Task[Config] =
+  def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
     loadp(files).map(Config("", _))
 
-  private def loadp(paths: List[(Name, Worth[FilePath])]): Task[BaseConfig] = for {
+  def loadp(paths: List[(Name, Worth[Resource])]): Task[BaseConfig] = for {
     ds <- loadFiles(paths.map(_._2))
     r <- flatten(paths, ds)
   } yield BaseConfig(paths, r)
 
-  private def flatten(roots: List[(Name, Worth[Path])],
-                      files: Loaded): Task[Env] = {
-    def doPath(m: Env, nwp: (Name, Worth[Path])) = {
+  def flatten(roots: List[(Name, Worth[Resource])], files: Loaded): Task[Env] = {
+    def doResource(m: Env, nwp: (Name, Worth[Resource])) = {
       val (pfx, f) = nwp
       files.get(f) match {
         case None => Task.now(m)
         case Some(ds) => Foldable[List].foldLeftM(ds, m)(directive(pfx, f.worth, _, _))
       }
     }
-    def directive(pfx: Name, f: Path, m: Env, d: Directive): Task[Env] =
+    def directive(pfx: Name, f: Resource, m: Env, d: Directive): Task[Env] =
       d match {
         case Bind(name, CfgText(value)) => for {
           v <- interpolate(value, m)
@@ -72,16 +67,16 @@ package object knobs {
           val pfxp = pfx + name + "."
           Foldable[List].foldLeftM(xs, m)(directive(pfxp, f, _, _))
         case Import(path) =>
-          val fp = relativize(f, path)
+          val fp = f resolve path
           files.get(Required(fp)) match {
             case Some(ds) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
             case _ => Task.now(m)
           }
       }
-    Foldable[List].foldLeftM(roots, Map():Env)(doPath)
+    Foldable[List].foldLeftM(roots, Map():Env)(doResource)
   }
 
-  private def interpolate(s: String, env: Env): Task[String] = {
+  def interpolate(s: String, env: Env): Task[String] = {
     def interpret(i: Interpolation): Task[String] = i match {
       case Literal(x) => Task.now(x)
       case Interpolate(name) => env.get(name) match {
@@ -103,21 +98,24 @@ package object knobs {
     ) else Task.now(s)
   }
 
-  private def importsOf(path: Path, d: List[Directive]): List[Worth[Path]] = d match {
-    case Import(ref) :: xs => Required(relativize(path, ref)) :: importsOf(path, xs)
+  def importsOf(path: Resource, d: List[Directive]): List[Worth[Resource]] = d match {
+    case Import(ref) :: xs => Required(path resolve ref) :: importsOf(path, xs)
     case Group(_, ys) :: xs => importsOf(path, ys) ++ importsOf(path, xs)
     case _ :: xs => importsOf(path, xs)
     case _ => Nil
   }
 
-  private def relativize(parent: Path, child: Path): Path =
-    if (child.head == '/') child
-    else parent.substring(0, parent.lastIndexOf('/')) ++ child
+  def readFile(path: Resource) = path match {
+    case URIResource(uri) => Task(scala.io.Source.fromFile(uri).mkString)
+    case FileResource(f) => Task(scala.io.Source.fromFile(f).mkString)
+    case ClassPathResource(r) =>
+      Task(getClass.getClassLoader.getResource(r)) flatMap { x =>
+        if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
+        else Task(scala.io.Source.fromFile(x.toURI).mkString)
+      }
+  }
 
-  private def readFile(path: FilePath) =
-    Task(scala.io.Source.fromFile(path).mkString)
-
-  private def loadOne(path: Worth[FilePath]): Task[List[Directive]] = for {
+  def loadOne(path: Worth[Resource]): Task[List[Directive]] = for {
     es <- readFile(path.worth).attempt
     r <- es.fold(ex => path match {
                    case Required(_) => Task.fail(ex)
@@ -126,11 +124,11 @@ package object knobs {
                  s => for {
                    p <- Task.delay(P.topLevel.parseOnly(s)).attempt.flatMap {
                      case -\/(ConfigError(_, err)) =>
-                       Task.fail(ConfigError(path.worth, err))
+                       Task.fail(ConfigError(path.worth.show, err))
                      case -\/(e) => Task.fail(e)
                      case \/-(a) => Task.now(a)
                    }
-                   r <- p.fold(err => Task.fail(ConfigError(path.worth, err)),
+                   r <- p.fold(err => Task.fail(ConfigError(path.worth.show, err)),
                                ds => Task.now(ds))
                  } yield r)
   } yield r
