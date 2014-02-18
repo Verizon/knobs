@@ -1,14 +1,27 @@
 import scalaz._
 import scalaz.concurrent.Task
-import scalaz.std.list._
 import scalaz.syntax.foldable._
 import scalaz.syntax.traverse._
+import scalaz.syntax.monad._
+import scalaz.std.list._
 
 package object knobs {
+  private [knobs] type Loaded = Map[Worth[Resource], List[Directive]]
+
+  /** The name of a configuration property */
   type Name = String
-  type Loaded = Map[Worth[Resource], List[Directive]]
+
+  /** A pure configuration environment map, detached from its sources */
   type Env = Map[Name, CfgValue]
+
   type Path = String
+
+  /**
+    * A change handler takes the `Name` of the property that changed,
+    * the value of that property (or `None` if the property was removed),
+    * and produces a `Task` to perform in reaction to that change.
+    */
+  type ChangeHandler = (Name, Option[CfgValue]) => Task[Unit]
 
   private val P = ConfigParser
 
@@ -25,18 +38,19 @@ package object knobs {
 
   /**
    * Create a `Config` from the contents of the named files, placing them
-   * into named prefixes. If a prefix is non-empty, it should end in a
-   * dot.
+   * into named prefixes.
    */
   def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
     loadp(files).map(Config("", _))
 
-  def loadSystemProperties: Task[Config] = Task {
-    val props = sys.props.toMap.map {
+  def loadSystemProperties: Task[Config] = for {
+    ps <- Task(sys.props.toMap.map {
       case (k, v) => k -> P.value.parseOnly(v).fold(_ => CfgText(v), a => a)
-    }
-    Config("", BaseConfig(Nil, props))
-  }
+    })
+    props <- IORef(ps)
+    paths <- IORef(List[(Name, Worth[Resource])]())
+    subs <- IORef(Map[Pattern, List[ChangeHandler]]())
+  } yield Config("", BaseConfig(paths, props, subs))
 
   def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
     def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
@@ -52,8 +66,12 @@ package object knobs {
 
   def loadp(paths: List[(Name, Worth[Resource])]): Task[BaseConfig] = for {
     ds <- loadFiles(paths.map(_._2))
-    r <- flatten(paths, ds)
-  } yield BaseConfig(paths, r)
+    p <- IORef(paths)
+    m <- flatten(paths, ds).flatMap(IORef(_))
+    s <- IORef(Map[Pattern, List[ChangeHandler]]())
+  } yield BaseConfig(paths = p, cfgMap = m, subs = s)
+
+  def addDot(p: String): String = if (p.isEmpty || p.endsWith(".")) p else p + "."
 
   def flatten(roots: List[(Name, Worth[Resource])], files: Loaded): Task[Env] = {
     def doResource(m: Env, nwp: (Name, Worth[Resource])) = {
@@ -63,7 +81,8 @@ package object knobs {
         case Some(ds) => Foldable[List].foldLeftM(ds, m)(directive(pfx, f.worth, _, _))
       }
     }
-    def directive(pfx: Name, f: Resource, m: Env, d: Directive): Task[Env] =
+    def directive(p: Name, f: Resource, m: Env, d: Directive): Task[Env] = {
+      val pfx = addDot(p)
       d match {
         case Bind(name, CfgText(value)) => for {
           v <- interpolate(value, m)
@@ -80,6 +99,7 @@ package object knobs {
             case _ => Task.now(m)
           }
       }
+    }
     Foldable[List].foldLeftM(roots, Map():Env)(doResource)
   }
 
@@ -140,5 +160,49 @@ package object knobs {
                                ds => Task.now(ds))
                  } yield r)
   } yield r
+
+  def notifySubscribers(before: Map[Name, CfgValue],
+                        after: Map[Name, CfgValue],
+                        subs: Map[Pattern, List[ChangeHandler]]): Task[Unit] = {
+    val changedOrGone = before.foldLeft(List[(Name, Option[CfgValue])]()) {
+      case (nvs, (n, v)) => (after get n) match {
+        case Some(vp) => if (v != vp) (n, Some(vp)) :: nvs else nvs
+        case _ => (n, None) :: nvs
+      }
+    }
+    val news = after.foldLeft(List[(Name, CfgValue)]()) {
+      case (nvs, (n, v)) => (before get n) match {
+        case None => (n, v) :: nvs
+        case _ => nvs
+      }
+    }
+    def notify(p: Pattern, n: Name, v: Option[CfgValue], a: ChangeHandler): Task[Unit] =
+      a(n, v).attempt.flatMap {
+        case -\/(e) =>
+          Task.fail(new Exception(s"A ChangeHandler threw an exception for ${(p, n)}", e))
+        case _ => Task(())
+      }
+
+    subs.foldLeft(Task(())) {
+      case (next, (p@Exact(n), acts)) =>
+        val v = after get n
+        when(before.get(n) != v) {
+          Foldable[List].traverse_(acts)(notify(p, n, v, _))
+        }.flatMap(_ => next)
+      case (next, (p@Prefix(n), acts)) =>
+        def matching[A](xs: List[(Name, A)]) = xs.filter(_._1.startsWith(n))
+          Foldable[List].traverse_(matching(news)) {
+            case (np, v) => Foldable[List].traverse_(acts)(notify(p, np, Some(v), _))
+          } >>
+          Foldable[List].traverse_(matching(changedOrGone)) {
+            case (np, v) => Foldable[List].traverse_(acts)(notify(p, np, v, _))
+          }
+    }
+  }
+
+  import language.higherKinds
+  // TODO: Add this to Scalaz
+  def when[M[_]:Monad](b: Boolean)(m: M[Unit]) =
+    if (b) m else implicitly[Monad[M]].pure(())
 }
 
