@@ -18,7 +18,7 @@ libraryDependencies ++= Seq("org.scalaz" %% "scalaz-core" % "7.0.5",
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.10.1" % "test"
 
-libraryDependencies += "com.comonad" %% "attoparsec" % "0.2"   
+libraryDependencies += "com.comonad" %% "attoparsec" % "0.2"
 
 libraryDependencies ++= Seq(
   "org.spire-math" %% "spire"       % "0.6.0",
