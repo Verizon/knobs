@@ -40,10 +40,14 @@ object Test extends Properties("Knobs") {
       } :| "nested"
     }}
 
+  lazy val loadPropertiesTest: Task[Prop] =
+    loadSystemProperties.map(_.lookup[String]("path.separator").isDefined)
+
   property("load-pathological-config") = loadTest.run
 
   property("interpolation") = interpTest.run
 
   property("import") = importTest.run
 
+  property("load-system-properties") = loadPropertiesTest.run
 }

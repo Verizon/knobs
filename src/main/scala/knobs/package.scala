@@ -12,18 +12,6 @@ package object knobs {
 
   private val P = ConfigParser
 
-  def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
-    def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
-      def notSeen(n: Worth[Resource]): Boolean = seen.get(n).isEmpty
-      for {
-        ds <- loadOne(path)
-        seenp = seen + (path -> ds)
-        r <- Foldable[List].foldLeftM(importsOf(path.worth, ds).filter(notSeen), seenp)(go)
-      } yield r
-    }
-    Foldable[List].foldLeftM(paths, Map():Loaded)(go)
-  }
-
   /**
    * Create a `Config` from the contents of the named files. Throws an
    * exception on error, such as if files do not exist or contain errors.
@@ -42,6 +30,25 @@ package object knobs {
    */
   def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
     loadp(files).map(Config("", _))
+
+  def loadSystemProperties: Task[Config] = Task {
+    val props = sys.props.toMap.map {
+      case (k, v) => k -> P.value.parseOnly(v).fold(_ => CfgText(v), a => a)
+    }
+    Config("", BaseConfig(Nil, props))
+  }
+
+  def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
+    def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
+      def notSeen(n: Worth[Resource]): Boolean = seen.get(n).isEmpty
+      for {
+        ds <- loadOne(path)
+        seenp = seen + (path -> ds)
+        r <- Foldable[List].foldLeftM(importsOf(path.worth, ds).filter(notSeen), seenp)(go)
+      } yield r
+    }
+    Foldable[List].foldLeftM(paths, Map():Loaded)(go)
+  }
 
   def loadp(paths: List[(Name, Worth[Resource])]): Task[BaseConfig] = for {
     ds <- loadFiles(paths.map(_._2))
@@ -87,8 +94,9 @@ package object knobs {
         case Some(x) =>
           Task.fail(new Exception(s"type error: $name must be a number or a string"))
         case _ => for {
-          e <- Task(sys.env.get(name))
-          r <- e.map(Task.now).getOrElse(Task.fail(ConfigError("", s"no such variable $name")))
+          e <- Task(sys.props.get(name) orElse sys.env.get(name))
+          r <- e.map(Task.now).getOrElse(
+            Task.fail(ConfigError("", s"no such variable $name")))
         } yield r
       }
     }
