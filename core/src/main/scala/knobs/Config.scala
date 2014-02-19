@@ -82,7 +82,7 @@ case class Config(root: String, base: BaseConfig) {
   } yield ()
 
   /**
-   * Add the properties in the given `Map` to this config. The string values
+   * Add the properties in the given `Map` to this config. The `String` values
    * will be parsed into `CfgValue`s.
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
@@ -94,6 +94,9 @@ case class Config(root: String, base: BaseConfig) {
         r => m + (k -> r)
       )
     })
+
+  def addSystemProperties: Task[Unit] =
+    loadSystemProperties.flatMap(ps => ps.base.cfgMap.read.flatMap(addEnv))
 
   /**
    * Look up a name in the `Config`. If a binding exists, and the value can
