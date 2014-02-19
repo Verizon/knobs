@@ -95,6 +95,11 @@ case class Config(root: String, base: BaseConfig) {
       )
     })
 
+  /**
+   * Load system properties into this configuration.
+   * Note: If this config is reloaded from source, these additional properties
+   * will be lost.
+   */
   def addSystemProperties: Task[Unit] =
     loadSystemProperties.flatMap(ps => ps.base.cfgMap.read.flatMap(addEnv))
 
