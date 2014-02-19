@@ -204,7 +204,7 @@ package object knobs {
           _ <- Foldable[List].traverse_(matching(changedOrGone)) {
             case (np, v) => Foldable[List].traverse_(acts)(notify(p, np, v, _))
           }
-        yield ()
+      } yield ()
     }
   }
 

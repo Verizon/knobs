@@ -11,7 +11,7 @@ import scalaz.std.list._
  * `Config` values are derived by choosing a root location.
  */
 case class BaseConfig(paths: IORef[List[(Name, Worth[Resource])]],
-                      cfgMap: IORef[Map[Name, CfgValue]],
+                      cfgMap: IORef[Env],
                       subs: IORef[Map[Pattern, List[ChangeHandler]]]) {
 
   /**
@@ -38,10 +38,11 @@ case class Config(root: String, base: BaseConfig) {
     Config(root + g + (if (g.isEmpty) "" else "."), base)
 
   /**
-   * Forcibly reload this `Config`. Throws an exception on error, such as
-   * if files no longer exist or contain errors. If the provided `Config` is
-   * a `subconfig`, this will reload the entire top-level configuration, not
-   * just the local section.
+   * Forcibly reload this `Config` from sources. Throws an exception on error,
+   * such as * if files no longer exist or contain errors. If the provided `Config`
+   * is a `subconfig`, this will reload the entire top-level configuration, not
+   * just the local section. Any overridden properties set with `addProperties`
+   * will disappear.
    */
   lazy val reload: Task[Unit] = base.reload
 
@@ -63,6 +64,14 @@ case class Config(root: String, base: BaseConfig) {
       _ <- base.reload
     } yield ()
   }
+
+  /**
+   * Add the properties in the given pure environment to this config.
+   * Note: If this config is reloaded from source, these additional properties
+   * will be lost.
+   */
+  def addProperties(props: Env): Task[Unit] =
+    base.cfgMap.modify(_ ++ props)
 
   /**
    * Look up a name in the `Config`. If a binding exists, and the value can
@@ -103,7 +112,7 @@ case class Config(root: String, base: BaseConfig) {
    * Fetch the `Map` that maps names to values. Turns the config into a pure value
    * disconnected from the file resources it came from.
    */
-  def getMap: Task[Map[Name, CfgValue]] =
+  def getEnv: Task[Env] =
     base.cfgMap.read
 
   /**

@@ -3,7 +3,7 @@ package knobs
 import java.net.URI
 import java.io.File
 
-/** Resources from which configuration can be loaded */
+/** Resources from which configuration files can be loaded */
 sealed trait Resource {
   /**
     * Returns a resource that has the given path resolved against this `Resource`.
