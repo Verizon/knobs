@@ -23,7 +23,8 @@ case class BaseConfig(paths: IORef[List[(Name, Worth[Resource])]],
     ps <- paths.read
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
     m  <- cfgMap.atomicModify(m => (mp, m))
-    _ <- subs.read.flatMap(notifySubscribers(m, mp, _))
+    s  <- subs.read
+    _ <- notifySubscribers(m, mp, s)
   } yield ()
 }
 
@@ -70,11 +71,12 @@ case class Config(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addProperties(props: Env): Task[Unit] = for {
-    (m, mp) <- base.cfgMap.atomicModify { m => {
-      val mp = x ++ props
+  def addEnv(props: Env): Task[Unit] = for {
+    p <- base.cfgMap.atomicModify { m =>
+      val mp = m ++ props
       (mp, (m, mp))
     }
+    (m, mp) = p
     subs <- base.subs.read
     _ <- notifySubscribers(m, mp, subs)
   } yield ()
@@ -85,15 +87,13 @@ case class Config(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addProperties(props: Map[Name, String]): Task[Unit] = for {
-    ps <- Foldable[List].foldLeftM(props.toList)(Map[Name, CfgValue]()) {
+  def addStrings(props: Map[Name, String]): Task[Unit] =
+    addEnv(props.toList.foldLeft(Map[Name, CfgValue]()) {
       case (m, (k, v)) => ConfigParser.value.parseOnly(v).fold(
-        e => Task.fail(e),
+        e => m + (k -> CfgText(v)),
         r => m + (k -> r)
       )
-    }
-    _ <- addProperties(ps)
-  } yield ()
+    })
 
   /**
    * Look up a name in the `Config`. If a binding exists, and the value can
