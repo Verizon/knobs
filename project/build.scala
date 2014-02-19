@@ -11,7 +11,9 @@ object Build extends Build {
       scalacOptions ++= Seq(
         "-feature"
       ),
-      resolvers += "tpolecat"  at "http://dl.bintray.com/tpolecat/maven"
+      resolvers ++= Seq(
+        "tpolecat"  at "http://dl.bintray.com/tpolecat/maven",
+        "runar"     at "http://dl.bintray.com/runarorama/maven/")
       // enable these for oflfine working.
       // , offline := true,
       // skip in update := true
@@ -27,7 +29,7 @@ object Build extends Build {
     )
   )
   .settings(ScctPlugin.mergeReportSettings:_*)
-  .aggregate(core, aws)
+  .aggregate(core)
 
   lazy val core = Project("core", file("core"))
     .settings(buildSettings:_*)
@@ -40,10 +42,10 @@ object Build extends Build {
       "org.scalacheck" %% "scalacheck"        % "1.10.1" % "test"
     ))
 
-  lazy val aws = Project("aws", file("aws"))
-    .settings(buildSettings:_*)
-    .settings(
-      libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.7.1"
-    )
-    .dependsOn(core)
+  // lazy val aws = Project("aws", file("aws"))
+  //   .settings(buildSettings:_*)
+  //   .settings(
+  //     libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.7.1"
+  //   )
+  //   .dependsOn(core)
 }
