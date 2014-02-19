@@ -70,8 +70,30 @@ case class Config(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addProperties(props: Env): Task[Unit] =
-    base.cfgMap.modify(_ ++ props)
+  def addProperties(props: Env): Task[Unit] = for {
+    (m, mp) <- base.cfgMap.atomicModify { m => {
+      val mp = x ++ props
+      (mp, (m, mp))
+    }
+    subs <- base.subs.read
+    _ <- notifySubscribers(m, mp, subs)
+  } yield ()
+
+  /**
+   * Add the properties in the given `Map` to this config. The string values
+   * will be parsed into `CfgValue`s.
+   * Note: If this config is reloaded from source, these additional properties
+   * will be lost.
+   */
+  def addProperties(props: Map[Name, String]): Task[Unit] = for {
+    ps <- Foldable[List].foldLeftM(props.toList)(Map[Name, CfgValue]()) {
+      case (m, (k, v)) => ConfigParser.value.parseOnly(v).fold(
+        e => Task.fail(e),
+        r => m + (k -> r)
+      )
+    }
+    _ <- addProperties(ps)
+  } yield ()
 
   /**
    * Look up a name in the `Config`. If a binding exists, and the value can
