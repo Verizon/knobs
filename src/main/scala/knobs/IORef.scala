@@ -10,7 +10,7 @@ sealed abstract class IORef[A] {
   def write(value: A): Task[Unit]
   def atomicModify[B](f: A => (A, B)): Task[B]
   def modify(f: A => A): Task[Unit] =
-    atomicModify(a => (a, ()))
+    atomicModify(a => (f(a), ()))
 }
 
 object IORef {

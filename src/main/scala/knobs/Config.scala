@@ -3,6 +3,7 @@ package knobs
 import scalaz.concurrent.Task
 import scala.concurrent.duration.Duration
 import scalaz.syntax.traverse._
+import scalaz.syntax.std.map._
 import scalaz.std.list._
 
 /**
@@ -105,5 +106,11 @@ case class Config(root: String, base: BaseConfig) {
   def getMap: Task[Map[Name, CfgValue]] =
     base.cfgMap.read
 
+  /**
+   * Subscribe to notifications. The given handler will be invoked when any change
+   * occurs to a configuration property that matches the pattern.
+   */
+  def subscribe(p: Pattern, h: ChangeHandler): Task[Unit] =
+    base.subs.modify(_.insertWith(p local root, List(h))(_ ++ _))
 }
 

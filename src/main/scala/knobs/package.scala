@@ -43,6 +43,9 @@ package object knobs {
   def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
     loadp(files).map(Config("", _))
 
+  /**
+   * Load the Java system properties as a config.
+   */
   def loadSystemProperties: Task[Config] = for {
     ps <- Task(sys.props.toMap.map {
       case (k, v) => k -> P.value.parseOnly(v).fold(_ => CfgText(v), a => a)
@@ -184,19 +187,24 @@ package object knobs {
       }
 
     subs.foldLeft(Task(())) {
-      case (next, (p@Exact(n), acts)) =>
-        val v = after get n
-        when(before.get(n) != v) {
+      case (next, (p@Exact(n), acts)) => for {
+        _ <- next
+        v = after get n
+        _ <- when(before.get(n) != v) {
           Foldable[List].traverse_(acts)(notify(p, n, v, _))
-        }.flatMap(_ => next)
+        }
+      } yield ()
       case (next, (p@Prefix(n), acts)) =>
         def matching[A](xs: List[(Name, A)]) = xs.filter(_._1.startsWith(n))
-          Foldable[List].traverse_(matching(news)) {
+        for {
+          _ <- next
+          _ <- Foldable[List].traverse_(matching(news)) {
             case (np, v) => Foldable[List].traverse_(acts)(notify(p, np, Some(v), _))
-          } >>
-          Foldable[List].traverse_(matching(changedOrGone)) {
+          }
+          _ <- Foldable[List].traverse_(matching(changedOrGone)) {
             case (np, v) => Foldable[List].traverse_(acts)(notify(p, np, v, _))
           }
+        yield ()
     }
   }
 
@@ -204,5 +212,6 @@ package object knobs {
   // TODO: Add this to Scalaz
   def when[M[_]:Monad](b: Boolean)(m: M[Unit]) =
     if (b) m else implicitly[Monad[M]].pure(())
+
 }
 
