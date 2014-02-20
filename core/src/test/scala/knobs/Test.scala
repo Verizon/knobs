@@ -45,7 +45,9 @@ object Test extends Properties("Knobs") {
     } yield p1 && p2 }
 
   lazy val loadPropertiesTest: Task[Prop] =
-    loadSystemProperties.flatMap(_.lookup[String]("path.separator").map(_.isDefined))
+    withLoad(List(Required(SysPropsResource(Prefix("path"))))) { cfg =>
+      cfg.lookup[String]("path.separator").map(_.isDefined)
+    }
 
   property("load-pathological-config") = loadTest.run
 

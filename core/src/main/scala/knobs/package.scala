@@ -43,18 +43,6 @@ package object knobs {
   def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
     loadp(files).map(Config("", _))
 
-  /**
-   * Load the Java system properties as a config.
-   */
-  def loadSystemProperties: Task[Config] = for {
-    ps <- Task(sys.props.toMap.map {
-      case (k, v) => k -> P.value.parseOnly(v).fold(_ => CfgText(v), a => a)
-    })
-    props <- IORef(ps)
-    paths <- IORef(List[(Name, Worth[Resource])]())
-    subs <- IORef(Map[Pattern, List[ChangeHandler]]())
-  } yield Config("", BaseConfig(paths, props, subs))
-
   def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
     def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
       def notSeen(n: Worth[Resource]): Boolean = seen.get(n).isEmpty
@@ -88,7 +76,7 @@ package object knobs {
       val pfx = addDot(p)
       d match {
         case Bind(name, CfgText(value)) => for {
-          v <- interpolate(value, m)
+          v <- interpolate(f, value, m)
         } yield m + ((pfx + name) -> CfgText(v))
         case Bind(name, value) =>
           Task.now(m + ((pfx + name) -> value))
@@ -106,7 +94,7 @@ package object knobs {
     Foldable[List].foldLeftM(roots, Map():Env)(doResource)
   }
 
-  def interpolate(s: String, env: Env): Task[String] = {
+  def interpolate(f: Resource, s: String, env: Env): Task[String] = {
     def interpret(i: Interpolation): Task[String] = i match {
       case Literal(x) => Task.now(x)
       case Interpolate(name) => env.get(name) match {
@@ -119,12 +107,12 @@ package object knobs {
         case _ => for {
           e <- Task(sys.props.get(name) orElse sys.env.get(name))
           r <- e.map(Task.now).getOrElse(
-            Task.fail(ConfigError("", s"no such variable $name")))
+            Task.fail(ConfigError(f, s"no such variable $name")))
         } yield r
       }
     }
     if (s contains "$") P.interp.parseOnly(s).fold(
-      e => Task.fail(new ConfigError("", e)),
+      e => Task.fail(new ConfigError(f, e)),
       xs => xs.traverse(interpret).map(_.mkString)
     ) else Task.now(s)
   }
@@ -144,25 +132,41 @@ package object knobs {
         if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
         else Task(scala.io.Source.fromFile(x.toURI).mkString)
       }
+    case _ => Task.fail(ConfigError(path, "Not a file resource"))
   }
 
-  def loadOne(path: Worth[Resource]): Task[List[Directive]] = for {
+  def loadFile(path: Worth[Resource]) = for {
     es <- readFile(path.worth).attempt
-    r <- es.fold(ex => path match {
-                   case Required(_) => Task.fail(ex)
-                   case _ => Task.now(Nil)
-                 },
-                 s => for {
-                   p <- Task.delay(P.topLevel.parseOnly(s)).attempt.flatMap {
-                     case -\/(ConfigError(_, err)) =>
-                       Task.fail(ConfigError(path.worth.show, err))
-                     case -\/(e) => Task.fail(e)
-                     case \/-(a) => Task.now(a)
-                   }
-                   r <- p.fold(err => Task.fail(ConfigError(path.worth.show, err)),
-                               ds => Task.now(ds))
-                 } yield r)
+    r <- es.fold(ex =>
+      path match {
+        case Required(_) => Task.fail(ex)
+        case _ => Task.now(Nil)
+      }, s => for {
+        p <- Task.delay(P.topLevel.parseOnly(s)).attempt.flatMap {
+          case -\/(ConfigError(_, err)) =>
+            Task.fail(ConfigError(path.worth, err))
+          case -\/(e) => Task.fail(e)
+          case \/-(a) => Task.now(a)
+        }
+        r <- p.fold(err => Task.fail(ConfigError(path.worth, err)),
+                    ds => Task.now(ds))
+      } yield r)
   } yield r
+
+  def loadOne(path: Worth[Resource]): Task[List[Directive]] =
+    path.worth match {
+      case p@SysPropsResource(pat) => for {
+        ds <- Task(sys.props.toMap.filterKeys(pat matches _).map {
+                   case (k, v) => Bind(k, P.value.parseOnly(v).toOption.getOrElse(CfgText(v)))
+                 })
+        r <- (ds.isEmpty, path) match {
+          case (true, Required(_)) =>
+            Task.fail(new ConfigError(p, "Required system properties $pat not present."))
+          case _ => Task(ds.toList)
+        }
+      } yield r
+      case _ => loadFile(path)
+    }
 
   def notifySubscribers(before: Map[Name, CfgValue],
                         after: Map[Name, CfgValue],

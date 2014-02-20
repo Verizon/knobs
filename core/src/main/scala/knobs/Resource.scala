@@ -21,6 +21,10 @@ sealed trait Resource {
       case URIResource(p) => URIResource(p resolve new URI(child))
       case FileResource(p) => FileResource(new File(res(p.getPath, child)))
       case ClassPathResource(p) => ClassPathResource(res(p, child))
+      case SysPropsResource(p) => SysPropsResource(p match {
+        case Exact(s) => Exact(s"$p.$s")
+        case Prefix(s) => Prefix(s"$p.$s")
+      })
     }
   }
 
@@ -35,6 +39,7 @@ sealed trait Resource {
 case class FileResource(f: File) extends Resource
 case class URIResource(u: URI) extends Resource
 case class ClassPathResource(name: String) extends Resource
+case class SysPropsResource(pattern: Pattern) extends Resource
 
 object Resource {
   def apply(f: File): Resource = FileResource(f)
