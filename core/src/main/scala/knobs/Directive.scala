@@ -6,28 +6,3 @@ case class Import(path: Path) extends Directive
 case class Bind(name: Name, value: CfgValue) extends Directive
 case class Group(name: Name, directives: List[Directive]) extends Directive
 
-/** A bound configuration value */
-sealed trait CfgValue {
-  def convertTo[A:Configured]: Option[A] = implicitly[Configured[A]].apply(this)
-  def pretty: String
-}
-case class CfgBool(value: Boolean) extends CfgValue {
-  val pretty = value.toString
-}
-case class CfgText(value: String) extends CfgValue {
-  val pretty = "\"" + value + "\""
-}
-case class CfgNumber(value: Double) extends CfgValue {
-  val pretty = value.toString
-}
-case class CfgList(value: List[CfgValue]) extends CfgValue {
-  lazy val pretty = {
-    val s = value.map(_.pretty).mkString(",")
-    s"[$s]"
-  }
-}
-
-sealed trait Interpolation
-case class Literal(text: String) extends Interpolation
-case class Interpolate(text: String) extends Interpolation
-
