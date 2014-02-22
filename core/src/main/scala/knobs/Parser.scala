@@ -4,7 +4,9 @@ import language.higherKinds._
 
 import scalaz._
 import scalaz.syntax.foldable._
+import scalaz.syntax.traverse._
 import scalaz.std.list._
+import scalaz.std.option._
 
 object ConfigParser {
   val P = new scalaparsers.Parsing[Unit] {}
@@ -72,23 +74,42 @@ object ConfigParser {
     word("true") >> unit(CfgBool(true)),
     word("false") >> unit(CfgBool(false)),
     string.map(CfgText(_)),
-    scientific.map(d => CfgNumber(d.toDouble)) scope "numeric literal",
-    (ch('[') >> (skipLWS >> value << skipLWS).sepBy(ch(',') << skipLWS) << ']').map(CfgList(_))
-      scope "list"
+    scientific.map(d => CfgNumber(d.toDouble)),
+    list.map(CfgList(_))
   ) scope "value"
 
   def isChar(b: Boolean, c: Char) =
     if (b) Some(false) else if (c == '"') None else Some(c == '\\')
 
-  lazy val string: Parser[String] =
-    ch('\"') >> satisfy(_ != '\"').many.map(_.mkString) << ch('\"')
+//  lazy val string: Parser[String] =
+//    (ch('\"') >> satisfy(_ != '\"').many.map(_.mkString) << ch('\"')) scope "string literal"
+
+  lazy val stringChar = stringLetter.map(Some(_)) | stringEscape
+
+  private lazy val stringLetter = satisfy(c => (c != '"') && (c != '\\') && (c > '\026'))
+
+  private lazy val stringEscape = ch('\\') >> {
+    (satisfy(_.isWhitespace).skipSome >> ch('\\')).as(None) |
+    escapeCode.map(Some(_))
+  }
+
+  private val charEscMagic: Map[Char, Char] = "bfnrt\\\"'".zip("\b\f\n\r\t\\\"'").toMap
+
+  private lazy val escapeCode =
+    choice(charEscMagic.toSeq.map { case (c,d) => ch(c) as d } :_*) scope "escape code"
+
+  lazy val string: Parser[String] = stringChar.many.between('"','"').map(
+    _.sequence[Option,Char].getOrElse(List()).mkString) scope "string literal"
+
+  lazy val list: Parser[List[CfgValue]] =
+    (ch('[') >> (skipLWS >> value << skipLWS).sepBy(ch(',') << skipLWS) << ']') scope "list"
 
   def isCont(c: Char) = Character.isLetterOrDigit(c) || c == '_' || c == '-'
 
   lazy val signedInt: Parser[BigInt] =
-    (ch('-') >> decimal).map(- _) | ch('+') >> decimal | decimal
+    (ch('-') >> decimal).map(- _) | (ch('+') >> decimal) | decimal
 
-  lazy val scientific: Parser[BigDecimal] = for {
+  lazy val scientific: Parser[BigDecimal] = (for {
     positive <- satisfy(c => c == '-' || c == '+').map(_ == '+') | unit(true)
     n <- decimal
     s <- (satisfy(_ == '.') >> takeWhile(_.isDigit).map(f =>
@@ -98,12 +119,14 @@ object ConfigParser {
          signedInt.flatMap(x =>
            if (x > Int.MaxValue) fail[Parser](s"Exponent too large: $x")
            else unit(s * BigDecimal(10).pow(x.toInt))) | unit(sCoeff)
-  } yield r
+  } yield r) scope "numeric literal"
 
   private def addDigit(a: BigInt, c: Char) = a * 10 + (c - 48)
 
+  lazy val digit = satisfy(_.isDigit) scope "digit"
+
   lazy val decimal: Parser[BigInt] =
-    satisfy(_.isDigit).some.map(_.foldLeft(BigInt(0))(addDigit))
+    digit.some.map(_.foldLeft(BigInt(0))(addDigit))
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single
