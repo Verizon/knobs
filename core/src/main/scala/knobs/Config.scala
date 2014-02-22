@@ -67,10 +67,12 @@ case class Config(root: String, base: BaseConfig) {
    */
   def addStrings(props: Map[Name, String]): Task[Unit] =
     addEnv(props.toList.foldLeft(Map[Name, CfgValue]()) {
-      case (m, (k, v)) => ConfigParser.value.parseOnly(v).fold(
-        e => m + (k -> CfgText(v)),
-        r => m + (k -> r)
-      )
+      case (m, (k, v)) =>
+        import ConfigParser._
+        value.parse(v).fold(
+          e => m + (k -> CfgText(v)),
+          r => m + (k -> r)
+        )
     })
 
   /**

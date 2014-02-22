@@ -6,131 +6,104 @@ import scalaz._
 import scalaz.syntax.foldable._
 import scalaz.std.list._
 
-import attoparsec._
-
 object ConfigParser {
-  import Parser._
-  val P = Applicative[Parser]
+  val P = new scalaparsers.Parsing[Unit] {}
+  import P._
+
+  implicit class ParserOps[A](p: Parser[A]) {
+    def parse[A](s: String) = runParser(p, s) match {
+      case Left(e) => \/.left(e.pretty.toString)
+      case Right((_, r)) => \/.right(r)
+    }
+  }
 
   lazy val topLevel: Parser[List[Directive]] =
-    directives <~ skipLWS <~ endOfInput
-
-  lazy val directive: Parser[Directive] =
-    List(s("import") ~> skipLWS ~> string.map(Import(_)),
-         P.apply2(attempt(ident <~ skipLWS <~ '=' <~ skipLWS), value)(Bind(_, _)),
-         P.apply2(attempt(ident <~ skipLWS <~ '{' <~ skipLWS),
-                  directives <~ skipLWS <~ '}')(Group(_, _))).concatenate
+    (directives << skipLWS << realEOF) scope "configuration"
 
   lazy val directives: Parser[List[Directive]] =
-    (skipLWS ~> directive <~ skipHWS) *
-    (satisfy(c => c == '\r' || c == '\n'))
+    directive.map2(attempt(newline >> directive).many)(_ :: _)
 
-  sealed trait Skip
-  case object Space extends Skip
-  case object Comment extends Skip
+  lazy val directive: Parser[Directive] =
+    (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
+      "directive"
+
+  lazy val importDirective =
+    word("import") >> skipLWS >> stringLiteral.map(Import(_)) scope "import directive"
+
+  lazy val bindDirective =
+    attempt(ident << skipLWS << '=' << skipLWS).map2(value)(Bind(_, _)) scope "bind directive"
+
+  lazy val groupDirective = { for {
+    g <- attempt(ident << skipLWS << '{' << skipLWS)
+    ds <- directives << skipLWS << '}'
+  } yield Group(g, ds) } scope "group directive"
 
   // Skip lines, comments, or horizontal white space
-  lazy val skipLWS: Parser[Unit] = {
-    // `s` is what we're currently skipping, and `c` is the next character
-    def go(s: Skip, c: Char) = (s, c) match {
-      // If we're skipping spaces and the next character is a space,
-      // keep skipping
-      case (Space, c) if (c.isWhitespace) => Some(Space)
-      case (Space, '#') => Some(Comment)
-      case (Space, _) => None
-      case (Comment, '\r') => Some(Space)
-      case (Comment, '\n') => Some(Space)
-      case (Comment, _) => Some(Comment)
-    }
-    scan(Space:Skip)(go) ~> ok(())
-  }
+  lazy val skipLWS: Parser[Unit] = (newline | comment | whitespace).skipMany
 
   // Skip comments or horizontal whitespace
-  lazy val skipHWS: Parser[Unit] = {
-    def go(s: Skip, c: Char) = (s, c) match {
-      case (Space, ' ') => Some(Space)
-      case (Space, '\t') => Some(Space)
-      case (Space, '#') => Some(Comment)
-      case (Space, _) => None
-      case (Comment, '\r') => None
-      case (Comment, '\n') => None
-      case (Comment, _) => Some(Comment)
-    }
-    scan(Space:Skip)(go) ~> ok(())
-  }
+  lazy val skipHWS: Parser[Unit] = (comment | whitespace).skipMany
+
+  lazy val newline: Parser[Unit] =
+    satisfy(c => c == '\r' || c == '\n').skip scope "newline"
+
+  lazy val whitespace: Parser[Unit] =
+    satisfy(c => c.isWhitespace && c != '\r' && c != '\n').skip scope "whitespace"
+
+  lazy val comment: Parser[Unit] =
+    { ch('#').attempt >>
+      satisfy(c => c != '\r' && c != '\n').skipMany >>
+      (newline | realEOF) >>
+      unit(()) } scope "comment"
+
+  def takeWhile(p: Char => Boolean): Parser[List[Char]] = satisfy(p).many
+
+  import scalaparsers.Document._
+  import scalaparsers.Diagnostic._
 
   lazy val ident: Parser[Name] = for {
-    n <- P.apply2(satisfy(c => Character.isLetter(c)), takeWhile(isCont))(_ +: _)
-    _ <- when(n == "import") {
-      err(s"reserved word ($n) used as an identifier"): Parser[Unit]
-    }
-  } yield n
+    n <- satisfy(c => Character.isLetter(c)).map2(takeWhile(isCont))(_ +: _)
+    _ <- failWhen[Parser](n == "import", s"reserved word ($n) used as an identifier")
+  } yield n.mkString
 
-  def isCont(c: Char) = Character.isLetterOrDigit(c) || c == '_' || c == '-'
+  lazy val value: Parser[CfgValue] = choice(
+    word("on") >> unit(CfgBool(true)),
+    word("off") >> unit(CfgBool(false)),
+    word("true") >> unit(CfgBool(true)),
+    word("false") >> unit(CfgBool(false)),
+    string.map(CfgText(_)),
+    scientific.map(d => CfgNumber(d.toDouble)) scope "numeric literal",
+    (ch('[') >> (skipLWS >> value << skipLWS).sepBy(ch(',') << skipLWS) << ']').map(CfgList(_))
+      scope "list"
+  ) scope "value"
+
   def isChar(b: Boolean, c: Char) =
     if (b) Some(false) else if (c == '"') None else Some(c == '\\')
 
-  def s(s: String): Parser[String] = s
+  lazy val string: Parser[String] =
+    ch('\"') >> satisfy(_ != '\"').many.map(_.mkString) << ch('\"')
 
-  lazy val value: Parser[CfgValue] = List(
-    s("on") ~> ok(CfgBool(true)),
-    s("off") ~> ok(CfgBool(false)),
-    s("true") ~> ok(CfgBool(true)),
-    s("false") ~> ok(CfgBool(false)),
-    string.map(CfgText(_)),
-    scientific.map(s => CfgNumber(s.toDouble)),
-    brackets('[', ']', (value <~ skipLWS) * (char(',') <~ skipLWS)).map(CfgList(_))
-  ).concatenate
+  def isCont(c: Char) = Character.isLetterOrDigit(c) || c == '_' || c == '-'
 
-  lazy val string: Parser[String] = for {
-    s <- '"' ~> scan(false)(isChar) <~ '"'
-    x <- if (s contains "\\") unescape(s) else ok(s)
-  } yield x
+  lazy val signedInt: Parser[BigInt] =
+    (ch('-') >> decimal).map(- _) | ch('+') >> decimal | decimal
 
-  def brackets[A](open: Char, close: Char, p: => Parser[A]): Parser[A] =
-    open ~> skipLWS ~> p <~ close
-
-  def embed[A](p: Parser[A], s: String): Parser[A] = (p parseOnly s).fold(
-    e => err(e),
-    v => ok(v))
-
-  def unescape(s: String): Parser[String] = {
-    def p(acc: String): Parser[String] = for {
-      h <- takeWhile(_ != '\\')
-      rest = {
-        def cont(c: Char) = p(acc ++ h :+ c)
-        for {
-          c <- '\\' ~> satisfy(_.toString matches "[ntru\"\\\\]")
-          r <- c match {
-            case 'n' => cont('\n')
-            case 't' => cont('\t')
-            case 'r' => cont('\r')
-            case '"' => cont('"')
-            case '\\' => cont('\\')
-            case _ => hexQuad flatMap cont
-          }
-        } yield r
-      }
-      done <- atEnd
-      r <- if (done) ok(acc ++ h) else rest
-    } yield r
-    embed(p(""), s)
-  }
-
-  lazy val hexadecimal: Parser[Long] = {
-    def step(a: Long, c: Char) = (a << 4) + Integer.parseInt(c.toString, 16)
-    takeWhile1(_.toString matches "[0-9a-fA-F]").map(_.foldLeft(0L)(step))
-  }
-
-  lazy val hexQuad: Parser[Char] = for {
-    a <- take(4).flatMap(embed(hexadecimal, _))
-    r <- if (a < 0xd800 || a > 0xdfff) ok(a.toChar) else for {
-      b <- (s("\\u") ~> take(4)).flatMap(embed(hexadecimal, _))
-      r <- if (a <= 0xdbff && b >= 0xdc00 && b <= 0xdfff)
-             ok((((a - 0xd800) << 10) + (b - 0xdc00) + 0x10000).toChar)
-           else err("invalid UTF-16 surrogates")
-    } yield r
+  lazy val scientific: Parser[BigDecimal] = for {
+    positive <- satisfy(c => c == '-' || c == '+').map(_ == '+') | unit(true)
+    n <- decimal
+    s <- (satisfy(_ == '.') >> takeWhile(_.isDigit).map(f =>
+      BigDecimal(n + "." + f.mkString))) | unit(BigDecimal(n))
+    sCoeff = if (positive) s else (- s)
+    r <- satisfy(c => c == 'e' || c == 'E') >>
+         signedInt.flatMap(x =>
+           if (x > Int.MaxValue) fail[Parser](s"Exponent too large: $x")
+           else unit(s * BigDecimal(10).pow(x.toInt))) | unit(sCoeff)
   } yield r
+
+  private def addDigit(a: BigInt, c: Char) = a * 10 + (c - 48)
+
+  lazy val decimal: Parser[BigInt] =
+    satisfy(_.isDigit).some.map(_.foldLeft(BigInt(0))(addDigit))
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single
@@ -139,18 +112,31 @@ object ConfigParser {
    */
   lazy val interp: Parser[List[Interpolation]] = {
     def p(acc: List[Interpolation]): Parser[List[Interpolation]] = for {
-      h <- takeWhile(_ != '$').map(Literal(_))
+      h <- takeWhile(_ != '$').map(x => Literal(x.mkString))
       rest = {
         def cont(x: Interpolation): Parser[List[Interpolation]] = p(x :: h :: acc)
         for {
-          c <- '$' ~> satisfy(c => c == '$' || c == '(')
+          c <- ch('$') >> satisfy(c => c == '$' || c == '(')
           r <- if (c == '$') cont(Literal("$"))
-               else (takeWhile1(_ != ')') <~ ')').flatMap(x => cont(Interpolate(x)))
+               else (satisfy(_ != ')').some << ')').flatMap(x => cont(Interpolate(x.mkString)))
         } yield r
       }
-      done <- atEnd
-      r <- if (done) ok(h :: acc) else rest
+      r <- rest | unit(h :: acc)
     } yield r
     p(Nil).map(_.reverse)
   }
+
+  import scalaparsers.ParseState
+  import scalaparsers.Supply
+  import scalaparsers.Pos
+
+  def apply(input: String, fileName: Path) =
+    runParser(topLevel, input, fileName)
+
+  def runParser[A](p: Parser[A], input: String, fileName: Path = "") =
+    p.run(ParseState(
+      loc = Pos.start(fileName, input),
+      input = input,
+      s = (),
+      layoutStack = List()), Supply.create)
 }

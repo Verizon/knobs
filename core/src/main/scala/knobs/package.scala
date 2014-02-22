@@ -24,6 +24,7 @@ package object knobs {
   type ChangeHandler = (Name, Option[CfgValue]) => Task[Unit]
 
   private val P = ConfigParser
+  import P.ParserOps
 
   /**
    * Create a `Config` from the contents of the named files. Throws an
@@ -111,7 +112,7 @@ package object knobs {
         } yield r
       }
     }
-    if (s contains "$") P.interp.parseOnly(s).fold(
+    if (s contains "$") P.interp.parse(s).fold(
       e => Task.fail(new ConfigError(f, e)),
       xs => xs.traverse(interpret).map(_.mkString)
     ) else Task.now(s)
@@ -142,7 +143,7 @@ package object knobs {
         case Required(_) => Task.fail(ex)
         case _ => Task.now(Nil)
       }, s => for {
-        p <- Task.delay(P.topLevel.parseOnly(s)).attempt.flatMap {
+        p <- Task.delay(P.topLevel.parse(s)).attempt.flatMap {
           case -\/(ConfigError(_, err)) =>
             Task.fail(ConfigError(path.worth, err))
           case -\/(e) => Task.fail(e)
@@ -157,7 +158,7 @@ package object knobs {
     path.worth match {
       case p@SysPropsResource(pat) => for {
         ds <- Task(sys.props.toMap.filterKeys(pat matches _).map {
-                   case (k, v) => Bind(k, P.value.parseOnly(v).toOption.getOrElse(CfgText(v)))
+                   case (k, v) => Bind(k, P.value.parse(v).toOption.getOrElse(CfgText(v)))
                  })
         r <- (ds.isEmpty, path) match {
           case (true, Required(_)) =>

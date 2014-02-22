@@ -1,5 +1,7 @@
 package knobs
 
+import scalaz.concurrent.Task
+
 /**
  * Global configuration data. This is the top-level config from which
  * `Config` values are derived by choosing a root location.

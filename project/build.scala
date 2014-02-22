@@ -13,7 +13,8 @@ object Build extends Build {
       ),
       resolvers ++= Seq(
         "tpolecat"  at "http://dl.bintray.com/tpolecat/maven",
-        "runar"     at "http://dl.bintray.com/runarorama/maven/")
+        "runar"     at "http://dl.bintray.com/runarorama/maven/",
+        "ermine"    at "http://dl.bintray.com/ermine/maven/")
       // enable these for oflfine working.
       // , offline := true,
       // skip in update := true
@@ -37,8 +38,8 @@ object Build extends Build {
       "org.scalaz"     %% "scalaz-core"       % "7.0.5",
       "org.scalaz"     %% "scalaz-concurrent" % "7.0.5",
       "com.comonad"    %% "attoparsec"        % "0.2",
+      "scala-parsers"  %% "scala-parsers"     % "0.1",
       "org.spire-math" %% "spire"             % "0.6.0",
-      "org.tpolecat"   %% "atto"              % "0.1",
       "org.scalacheck" %% "scalacheck"        % "1.10.1" % "test"
     ))
 
