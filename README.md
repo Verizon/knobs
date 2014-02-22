@@ -42,7 +42,7 @@ a = true
 The configuration file format supports the following data types:
 
   * Booleans, represented as `on` or `off`, `true` or `false`. These are case sensitive, so do not try to use `True` instead of `true`!
-  * Integers, represented in base 10.
+  * Numbers, represented in base 10. These can be integers or double precision floating point numbers in scientific notation, e.g. `0.0012` or `1.2e-3`.
   * Unicode strings, represented as text (possibly containing escape sequences) surrounded by double quotes.
   * Heterogeneous lists of values, represented as an opening square bracket `[`, followed by a series of comma-separated values, ending with a closing square bracket `]`.
 
