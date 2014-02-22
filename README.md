@@ -59,7 +59,7 @@ The following escape sequences are recognized in a text string:
 
 ### String interpolation ###
 
-String support interpolation, so that you can dynamically construct a string based on data in your configuration, the OS environment, or system properties.
+Strings support interpolation, so that you can dynamically construct a string based on data in your configuration, the OS environment, or system properties.
 
 If a string value contains the special sequence `$(foo)` (for any name `foo`), then the name `foo` will be looked up in the configuration data and its value substituted. If that name cannot be found, it will be looked up in the Java system properties. Failing that, Knobs will look in the OS environment for a matching environment variable.
 
