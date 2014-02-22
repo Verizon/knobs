@@ -53,7 +53,7 @@ The following escape sequences are recognized in a text string:
   * `\n` newline
   * `\r` carriage return
   * `\t` tab
-  * '\"' double quote
+  * `\"` double quote
   * `\\` backslash
 
 ### String interpolation ###
