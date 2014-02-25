@@ -9,6 +9,7 @@ Features include:
   * A simple but flexible configuration language, supporting  several of the most commonly needed types of data, along with interpolation of strings from the configuration, environment variables (e.g. `$(HOME)`), or Java system properties (e.g. `$(path.separator)`).
   * Subscription-based notification of changes to configuration properties.
   * An `import` directive allows the configuration of a complex application to be split across several smaller files, or to be shared across several applications.
+  * Helpful error messages when config files have errors in them.
 
 ## Configuration file format ###
 
