@@ -6,7 +6,7 @@ object Build extends Build {
     Defaults.defaultSettings ++
     ImBuildPlugin.imBuildSettings ++
     ScctPlugin.instrumentSettings ++ Seq(
-      organization := "intelmedia.ws.radar",
+      organization := "knobs",
       scalaVersion := "2.10.3",
       scalacOptions ++= Seq(
         "-feature"
