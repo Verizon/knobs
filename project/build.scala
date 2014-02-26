@@ -4,8 +4,7 @@ object Build extends Build {
 
   lazy val buildSettings =
     Defaults.defaultSettings ++
-    ImBuildPlugin.imBuildSettings ++
-    ScctPlugin.instrumentSettings ++ Seq(
+    ImBuildPlugin.imBuildSettings ++ Seq(
       organization := "knobs",
       scalaVersion := "2.10.3",
       scalacOptions ++= Seq(
