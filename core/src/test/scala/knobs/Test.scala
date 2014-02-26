@@ -5,8 +5,8 @@ import scalaz.concurrent.Task
 import Prop._
 
 object Test extends Properties("Knobs") {
-  def withLoad[A](files: List[Worth[Resource]])(t: Config => Task[A]): Task[A] =
-    for {
+  def withLoad[A](files: List[Worth[Resource]])(
+    t: MutableConfig => Task[A]): Task[A] = for {
       mb <- load(files)
       r <- t(mb)
     } yield r

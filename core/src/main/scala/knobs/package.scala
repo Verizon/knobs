@@ -34,15 +34,18 @@ package object knobs {
    * first time they are opened, so you can speficy a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def load(files: List[Worth[Resource]]): Task[Config] =
-    loadp(files.map(f => ("", f))).map(Config("", _))
+  def load(files: List[Worth[Resource]]): Task[MutableConfig] =
+    loadp(files.map(f => ("", f))).map(MutableConfig("", _))
+
+  def loadImmutable(files: List[Worth[Resource]]): Task[Config] =
+    load(files).flatMap(_.immutable)
 
   /**
    * Create a `Config` from the contents of the named files, placing them
    * into named prefixes.
    */
-  def loadGroups(files: List[(Name, Worth[Resource])]): Task[Config] =
-    loadp(files).map(Config("", _))
+  def loadGroups(files: List[(Name, Worth[Resource])]): Task[MutableConfig] =
+    loadp(files).map(MutableConfig("", _))
 
   def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
     def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {

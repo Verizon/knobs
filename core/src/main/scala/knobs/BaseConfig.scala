@@ -11,9 +11,16 @@ case class BaseConfig(paths: IORef[List[(Name, Worth[Resource])]],
                       subs: IORef[Map[Pattern, List[ChangeHandler]]]) {
 
   /**
-   * Get the `Config` at the given root location.
+   * Get the `MutableConfig` at the given root location.
    */
-  def at(root: String) = Config("", this).subconfig(root)
+  def mutableAt(root: String): MutableConfig =
+    MutableConfig("", this).subconfig(root)
+
+  /**
+   * Get the `Config` at the given root location
+   */
+  def at(root: String): Task[Config] =
+    cfgMap.read.map(Config(_).subconfig(root))
 
   lazy val reload: Task[Unit] = for {
     ps <- paths.read
