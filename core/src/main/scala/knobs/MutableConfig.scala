@@ -6,7 +6,7 @@ import scalaz.syntax.traverse._
 import scalaz.syntax.std.map._
 import scalaz.std.list._
 
-/** Mutable configuration data */
+/** Mutable, reloadable, configuration data */
 case class MutableConfig(root: String, base: BaseConfig) {
 
   /**
@@ -65,14 +65,17 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addStrings(props: Map[Name, String]): Task[Unit] =
+  def addStrings(props: Map[Name, String]): Task[Unit] = addMap(props)
+
+  /**
+   * Add the properties in the given `Map` to this config. The values
+   * will be converted to `CfgValue`s according to their `Valuable` instance.
+   * Note: If this config is reloaded from source, these additional properties
+   * will be lost.
+   */
+  def addMap[V:Valuable](props: Map[Name, V]): Task[Unit] =
     addEnv(props.toList.foldLeft(Map[Name, CfgValue]()) {
-      case (m, (k, v)) =>
-        import ConfigParser._
-        value.parse(v).fold(
-          e => m + (k -> CfgText(v)),
-          r => m + (k -> r)
-        )
+      case (m, (k, v)) => m + (k -> Valuable[V].convert(v))
     })
 
   /**

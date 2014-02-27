@@ -16,3 +16,6 @@ case class Config(env: Env) {
     env.get(name).flatMap(_.convertTo[A])
 }
 
+object Config {
+  val empty = Config(Map())
+}
