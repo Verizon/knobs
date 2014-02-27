@@ -27,7 +27,13 @@ package object knobs {
   import P.ParserOps
 
   /**
-   * Create a `Config` from the contents of the named files. Throws an
+   * Generate a `Config` from a `Map` of values that can be converted to `CfgValue`s.
+   */
+  def configFrom[V:Valuable](map: Map[Name, V]): Config =
+    Config(map.mapValues(Valuable[V].convert))
+
+  /**
+   * Create a `MutableConfig` from the contents of the named files. Throws an
    * exception on error, such as if files do not exist or contain errors.
    *
    * File names have any environment variables expanded prior to the
@@ -37,17 +43,25 @@ package object knobs {
   def load(files: List[Worth[Resource]]): Task[MutableConfig] =
     loadp(files.map(f => ("", f))).map(MutableConfig("", _))
 
+  /**
+   * Create an immutable `Config` from the contents of the named files. Throws an
+   * exception on error, such as if files do not exist or contain errors.
+   *
+   * File names have any environment variables expanded prior to the
+   * first time they are opened, so you can speficy a file name such as
+   * `"$(HOME)/myapp.cfg"`.
+   */
   def loadImmutable(files: List[Worth[Resource]]): Task[Config] =
     load(files).flatMap(_.immutable)
 
   /**
-   * Create a `Config` from the contents of the named files, placing them
+   * Create a `MutableConfig` from the contents of the named files, placing them
    * into named prefixes.
    */
   def loadGroups(files: List[(Name, Worth[Resource])]): Task[MutableConfig] =
     loadp(files).map(MutableConfig("", _))
 
-  def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
+  private [knobs] def loadFiles(paths: List[Worth[Resource]]): Task[Loaded] = {
     def go(seen: Loaded, path: Worth[Resource]): Task[Loaded] = {
       def notSeen(n: Worth[Resource]): Boolean = seen.get(n).isEmpty
       for {
@@ -59,16 +73,17 @@ package object knobs {
     Foldable[List].foldLeftM(paths, Map():Loaded)(go)
   }
 
-  def loadp(paths: List[(Name, Worth[Resource])]): Task[BaseConfig] = for {
+  private [knobs] def loadp(paths: List[(Name, Worth[Resource])]): Task[BaseConfig] = for {
     ds <- loadFiles(paths.map(_._2))
     p <- IORef(paths)
     m <- flatten(paths, ds).flatMap(IORef(_))
     s <- IORef(Map[Pattern, List[ChangeHandler]]())
   } yield BaseConfig(paths = p, cfgMap = m, subs = s)
 
-  def addDot(p: String): String = if (p.isEmpty || p.endsWith(".")) p else p + "."
+  private [knobs] def addDot(p: String): String =
+    if (p.isEmpty || p.endsWith(".")) p else p + "."
 
-  def flatten(roots: List[(Name, Worth[Resource])], files: Loaded): Task[Env] = {
+  private [knobs] def flatten(roots: List[(Name, Worth[Resource])], files: Loaded): Task[Env] = {
     def doResource(m: Env, nwp: (Name, Worth[Resource])) = {
       val (pfx, f) = nwp
       files.get(f) match {
@@ -98,7 +113,7 @@ package object knobs {
     Foldable[List].foldLeftM(roots, Map():Env)(doResource)
   }
 
-  def interpolate(f: Resource, s: String, env: Env): Task[String] = {
+  private [knobs] def interpolate(f: Resource, s: String, env: Env): Task[String] = {
     def interpret(i: Interpolation): Task[String] = i match {
       case Literal(x) => Task.now(x)
       case Interpolate(name) => env.get(name) match {
@@ -121,14 +136,14 @@ package object knobs {
     ) else Task.now(s)
   }
 
-  def importsOf(path: Resource, d: List[Directive]): List[Worth[Resource]] = d match {
+  private [knobs] def importsOf(path: Resource, d: List[Directive]): List[Worth[Resource]] = d match {
     case Import(ref) :: xs => Required(path resolve ref) :: importsOf(path, xs)
     case Group(_, ys) :: xs => importsOf(path, ys) ++ importsOf(path, xs)
     case _ :: xs => importsOf(path, xs)
     case _ => Nil
   }
 
-  def readFile(path: Resource) = path match {
+  private [knobs] def readFile(path: Resource) = path match {
     case URIResource(uri) => Task(scala.io.Source.fromFile(uri).mkString)
     case FileResource(f) => Task(scala.io.Source.fromFile(f).mkString)
     case ClassPathResource(r) =>
@@ -139,7 +154,7 @@ package object knobs {
     case _ => Task.fail(ConfigError(path, "Not a file resource"))
   }
 
-  def loadFile(path: Worth[Resource]) = for {
+  private [knobs] def loadFile(path: Worth[Resource]) = for {
     es <- readFile(path.worth).attempt
     r <- es.fold(ex =>
       path match {
@@ -157,7 +172,7 @@ package object knobs {
       } yield r)
   } yield r
 
-  def loadOne(path: Worth[Resource]): Task[List[Directive]] =
+  private [knobs] def loadOne(path: Worth[Resource]): Task[List[Directive]] =
     path.worth match {
       case p@SysPropsResource(pat) => for {
         ds <- Task(sys.props.toMap.filterKeys(pat matches _).map {
@@ -172,9 +187,10 @@ package object knobs {
       case _ => loadFile(path)
     }
 
-  def notifySubscribers(before: Map[Name, CfgValue],
-                        after: Map[Name, CfgValue],
-                        subs: Map[Pattern, List[ChangeHandler]]): Task[Unit] = {
+  private [knobs] def notifySubscribers(
+    before: Map[Name, CfgValue],
+    after: Map[Name, CfgValue],
+    subs: Map[Pattern, List[ChangeHandler]]): Task[Unit] = {
     val changedOrGone = before.foldLeft(List[(Name, Option[CfgValue])]()) {
       case (nvs, (n, v)) => (after get n) match {
         case Some(vp) => if (v != vp) (n, Some(vp)) :: nvs else nvs

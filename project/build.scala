@@ -37,11 +37,16 @@ object Build extends Build {
     .settings(libraryDependencies ++= Seq(
       "org.scalaz"     %% "scalaz-core"       % "7.0.5",
       "org.scalaz"     %% "scalaz-concurrent" % "7.0.5",
-      "com.comonad"    %% "attoparsec"        % "0.2",
       "scala-parsers"  %% "scala-parsers"     % "0.1",
       "org.spire-math" %% "spire"             % "0.6.0",
       "org.scalacheck" %% "scalacheck"        % "1.10.1" % "test"
     ))
+
+  lazy val typesafe = Project("typesafe", file("typesafe")).dependsOn(core).
+    settings(buildSettings:_*).settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe" % "config" % "1.2.0"
+      ))
 
   // lazy val aws = Project("aws", file("aws"))
   //   .settings(buildSettings:_*)

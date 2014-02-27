@@ -32,6 +32,7 @@ sealed trait Resource {
     this match {
       case URIResource(u) => u.toString
       case FileResource(f) => f.toString
+      case SysPropsResource(p) => s"System properties $p.*"
       case ClassPathResource(r) => getClass.getClassLoader.getResource(r).toURI.toString
     }
 }
