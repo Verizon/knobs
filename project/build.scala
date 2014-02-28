@@ -22,7 +22,7 @@ object Build extends Build {
   lazy val root = Project(
     id = "knobs",
     base = file("."),
-    settings = Seq(
+    settings = buildSettings ++ Seq(
       publishArtifact in (Compile, packageBin) := false,
       publish := (),
       publishLocal := ()
