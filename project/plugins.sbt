@@ -6,6 +6,4 @@ resolvers ++= Seq(
 
 addSbtPlugin("intelmedia.build" %% "sbt-imbuild" % "5.1.+")
 
-addSbtPlugin("com.eed3si9n" % "sbt-unidoc" % "0.3.0")
-
 credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")

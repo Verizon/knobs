@@ -28,7 +28,6 @@ object Build extends Build {
       publishLocal := ()
     )
   )
-  .settings(sbtunidoc.Plugin.unidocSettings:_*)
   .settings(ScctPlugin.mergeReportSettings:_*)
   .aggregate(core, typesafe)
 
