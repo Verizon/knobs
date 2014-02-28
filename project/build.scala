@@ -22,13 +22,12 @@ object Build extends Build {
   lazy val root = Project(
     id = "knobs",
     base = file("."),
-    settings = buildSettings ++ Seq(
+    settings = Seq(
       publishArtifact in (Compile, packageBin) := false,
       publish := (),
       publishLocal := ()
     )
   )
-  .settings(ScctPlugin.mergeReportSettings:_*)
   .aggregate(core, typesafe)
 
   lazy val core = Project("core", file("core"))
