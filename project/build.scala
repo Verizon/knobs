@@ -28,8 +28,9 @@ object Build extends Build {
       publishLocal := ()
     )
   )
+  .settings(sbtunidoc.Plugin.unidocSettings:_*)
   .settings(ScctPlugin.mergeReportSettings:_*)
-  .aggregate(core)
+  .aggregate(core, typesafe)
 
   lazy val core = Project("core", file("core"))
     .settings(buildSettings:_*)
