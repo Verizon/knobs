@@ -1,6 +1,8 @@
 package knobs
 
 import scalaz.syntax.std.map._
+import scalaz.\/
+import scalaz.\/._
 
 /** Immutable configuration data */
 case class Config(env: Env) {
@@ -18,4 +20,18 @@ case class Config(env: Env) {
 
 object Config {
   val empty = Config(Map())
+
+  def parse(s: String): String \/ Config = {
+    import ConfigParser._
+    def go(pfx: String, acc: Env, ds: List[Directive]): Env =
+      ds.foldLeft(acc)((m, d) => d match {
+        case Bind(name, v) => m + ((pfx + name) -> v)
+        case Group(name, gds) => go(pfx + name + ".", m, gds)
+        case x => sys.error("Unexpected directive: $x")
+      })
+    runParser(sansImport, s) match {
+      case Left(e) => left(e.message.toString)
+      case Right((_, ds)) => right(Config(go("", empty.env, ds)))
+    }
+  }
 }

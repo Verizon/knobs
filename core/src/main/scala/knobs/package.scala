@@ -27,12 +27,6 @@ package object knobs {
   import P.ParserOps
 
   /**
-   * Generate a `Config` from a `Map` of values that can be converted to `CfgValue`s.
-   */
-  def configFrom[V:Valuable](map: Map[Name, V]): Config =
-    Config(map.mapValues(Valuable[V].convert))
-
-  /**
    * Create a `MutableConfig` from the contents of the named files. Throws an
    * exception on error, such as if files do not exist or contain errors.
    *

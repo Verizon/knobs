@@ -19,8 +19,15 @@ object ConfigParser {
     }
   }
 
+  /** Top-level parser of configuration files */
   lazy val topLevel: Parser[List[Directive]] =
     (directives << skipLWS << realEOF) scope "configuration"
+
+  /** Parser of configuration files that don't support import directives */
+  lazy val sansImport: Parser[List[Directive]] = {
+    val d = (skipLWS >> choice(bindDirective, groupDirective) << skipHWS)
+    d.map2(attempt(newline >> d).many)(_ :: _)
+  }
 
   lazy val directives: Parser[List[Directive]] =
     directive.map2(attempt(newline >> directive).many)(_ :: _)
