@@ -21,7 +21,7 @@ case class Config(env: Env) {
 object Config {
   val empty = Config(Map())
 
-  def parse(s: String): String \/ Config = {
+  def parse(s: String): Throwable \/ Config = {
     import ConfigParser._
     def go(pfx: String, acc: Env, ds: List[Directive]): Env =
       ds.foldLeft(acc)((m, d) => d match {
@@ -30,7 +30,7 @@ object Config {
         case x => sys.error("Unexpected directive: $x")
       })
     runParser(sansImport, s) match {
-      case Left(e) => left(e.message.toString)
+      case Left(e) => left(ParseException(e.message.toString))
       case Right((_, ds)) => right(Config(go("", empty.env, ds)))
     }
   }

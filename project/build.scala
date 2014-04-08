@@ -45,11 +45,4 @@ object Build extends Build {
       libraryDependencies ++= Seq(
         "com.typesafe" % "config" % "1.2.0"
       ))
-
-  // lazy val aws = Project("aws", file("aws"))
-  //   .settings(buildSettings:_*)
-  //   .settings(
-  //     libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.7.1"
-  //   )
-  //   .dependsOn(core)
 }

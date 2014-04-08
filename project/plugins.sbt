@@ -4,6 +4,6 @@ resolvers ++= Seq(
   "scct-github-repository" at "http://mtkopone.github.com/scct/maven-repo"
 )
 
-addSbtPlugin("intelmedia.build" %% "sbt-imbuild" % "5.1.4")
+addSbtPlugin("intelmedia.build" %% "sbt-imbuild" % "5.1.+")
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
