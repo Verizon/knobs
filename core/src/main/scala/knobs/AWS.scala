@@ -21,11 +21,8 @@ object aws {
   def fetch(child: Path, parent: Path = root, version: Path = revision): Task[String] =
     Task(Source.fromInputStream(new URL(s"$parent/$version/$child").openConnection.getInputStream).mkString)
 
-  def convert(field: String, f: String => String = x => "\"" +x+ "\"")(response: String): Task[Config] ={
-    val xxx = s"aws { $field = ${f(response)} }"
-    println(">>>>> " + xxx)
-    Config.parse(xxx).fold(Task.fail, Task.now)
-  }
+  def convert(field: String, f: String => String = x => "\"" +x+ "\"")(response: String): Task[Config] =
+    Config.parse(s"aws { $field = ${f(response)} }").fold(Task.fail, Task.now)
 
   def userdata: Task[Config] = fetch("user-data")
     .flatMap(response => Config.parse(response)
