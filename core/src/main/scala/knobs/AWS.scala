@@ -38,10 +38,10 @@ object aws {
     convert("security-groups", x => "[" + x.split('\n').map(x => "\""+x+"\"").mkString(", ") + "]"  ))
 
   lazy val config: Task[Config] =
-    for {
+    (for {
       a <- userdata
       b <- instance
       c <- ami
       d <- securityGroups
-    } yield a ++ b ++ c ++ d
+    } yield a ++ b ++ c ++ d) or Task.now(Config.empty) // fallback for running someplace other than aws.
 }
