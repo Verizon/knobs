@@ -138,7 +138,7 @@ package object knobs {
   }
 
   private [knobs] def readFile(path: Resource): Task[String] = path match {
-    case URLResource(url) => Task(scala.io.Source.fromInputStream(url.openConnection.getInputStream).mkString + "\n")
+    case URIResource(uri) => Task(scala.io.Source.fromFile(uri).mkString + "\n")
     case FileResource(f) => Task(scala.io.Source.fromFile(f).mkString)
     case ClassPathResource(r) =>
       Task(getClass.getClassLoader.getResource(r)) flatMap { x =>
