@@ -119,7 +119,7 @@ This will result in a value named `hi.bar`.
 In the general case, configurations are loaded using the `load` method in the `knobs` package. Configurations are loaded from `Resource`s. The types of resources supported are:
 
   * `FileResource` - loads a file from the file system
-  * `URIResource` - loads any URI supported by the class `java.net.URI`
+  * `URLResource` - loads any URI supported by the class `java.net.URI`
   * `ClassPathResource` - loads a file from the classpath
   * `SysPropsResource` - loads system properties matching a specific pattern
 
