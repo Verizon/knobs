@@ -1,6 +1,6 @@
 package knobs
 
-import java.net.URL
+import java.net.URI
 import java.io.File
 
 /** Resources from which configuration files can be loaded */
@@ -18,7 +18,7 @@ sealed trait Resource {
       else p.substring(0, p.lastIndexOf('/') + 1) ++ c
 
     this match {
-      case URLResource(p) => URLResource(new URL(p, child))
+      case URIResource(p) => URIResource(p resolve new URI(child))
       case FileResource(p) => FileResource(new File(res(p.getPath, child)))
       case ClassPathResource(p) => ClassPathResource(res(p, child))
       case SysPropsResource(p) => SysPropsResource(p match {
@@ -30,7 +30,7 @@ sealed trait Resource {
 
   def show: String =
     this match {
-      case URLResource(u) => u.toString
+      case URIResource(u) => u.toString
       case FileResource(f) => f.toString
       case SysPropsResource(p) => s"System properties $p.*"
       case ClassPathResource(r) => getClass.getClassLoader.getResource(r).toURI.toString
@@ -38,13 +38,13 @@ sealed trait Resource {
 }
 
 case class FileResource(f: File) extends Resource
-case class URLResource(u: URL) extends Resource
+case class URIResource(u: URI) extends Resource
 case class ClassPathResource(name: String) extends Resource
 case class SysPropsResource(pattern: Pattern) extends Resource
 
 object Resource {
   def apply(f: File): Resource = FileResource(f)
-  def apply(u: URL): Resource = URLResource(u)
+  def apply(u: URI): Resource = URIResource(u)
   def apply(c: String): Resource = ClassPathResource(c)
 }
 

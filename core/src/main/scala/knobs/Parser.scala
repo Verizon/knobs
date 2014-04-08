@@ -39,8 +39,12 @@ object ConfigParser {
   lazy val importDirective =
     word("import") >> skipLWS >> stringLiteral.map(Import(_)) scope "import directive"
 
-  lazy val bindDirective =
-    attempt(ident << skipLWS << '=' << skipLWS).map2(value)(Bind(_, _)) scope "bind directive"
+  lazy val bindDirective = {
+    attempt(ident.sepBy1('.') << skipLWS << '=' << skipLWS).map2(value) { (x, v) =>
+      val xs = x.reverse
+      xs.tail.foldLeft(Bind(xs.head, v):Directive)((d, g) => Group(g, List(d)))
+    }
+  } scope "bind directive"
 
   lazy val groupDirective = { for {
     g <- attempt(ident << skipLWS << '{' << skipLWS)
