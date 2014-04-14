@@ -118,7 +118,8 @@ package object knobs {
         case Some(x) =>
           Task.fail(new Exception(s"type error: $name must be a number or a string"))
         case _ => for {
-          e <- Task(sys.props.get(name) orElse sys.env.get(name))
+          // added because lots of sys-admins think software is case unaware. Doh!
+          e <- Task(sys.props.get(name) orElse sys.env.get(name) orElse sys.env.get(name.toLowerCase))
           r <- e.map(Task.now).getOrElse(
             Task.fail(ConfigError(f, s"no such variable $name")))
         } yield r
