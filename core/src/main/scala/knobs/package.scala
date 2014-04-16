@@ -142,9 +142,9 @@ package object knobs {
     case URIResource(uri) => Task(scala.io.Source.fromFile(uri).mkString + "\n")
     case FileResource(f) => Task(scala.io.Source.fromFile(f).mkString)
     case ClassPathResource(r) =>
-      Task(getClass.getClassLoader.getResource(r)) flatMap { x =>
+      Task(getClass.getClassLoader.getResourceAsStream(r)) flatMap { x =>
         if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
-        else Task(scala.io.Source.fromFile(x.toURI).mkString)
+        else Task(scala.io.Source.fromInputStream(x).mkString)
       }
     case _ => Task.fail(ConfigError(path, "Not a file resource"))
   }
