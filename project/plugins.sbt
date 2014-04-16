@@ -1,5 +1,3 @@
-// Comment to get more information during initialization
-logLevel := Level.Warn
 
 resolvers ++= Seq(
   "Sonatype Nexus Intel Media Maven Group" at "http://nexus.svc.oncue.com/nexus/content/groups/intel_media_maven/",
