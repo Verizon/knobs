@@ -14,8 +14,13 @@ case class Config(env: Env) {
   def ++(cfg: Config): Config =
     Config(env ++ cfg.env)
 
+  /** Look up the value under the key with the given name */
   def lookup[A:Configured](name: Name): Option[A] =
     env.get(name).flatMap(_.convertTo[A])
+
+  /** Look up the value under the key with the given name and error if it doesn't exist */
+  def require[A:Configured](name: Name): A =
+    lookup(name).getOrElse(throw KeyError(name))
 }
 
 object Config {
