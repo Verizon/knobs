@@ -118,7 +118,8 @@ package object knobs {
         case Some(x) =>
           Task.fail(new Exception(s"type error: $name must be a number or a string"))
         case _ => for {
-          e <- Task(sys.props.get(name) orElse sys.env.get(name))
+          // added because lots of sys-admins think software is case unaware. Doh!
+          e <- Task(sys.props.get(name) orElse sys.env.get(name) orElse sys.env.get(name.toLowerCase))
           r <- e.map(Task.now).getOrElse(
             Task.fail(ConfigError(f, s"no such variable $name")))
         } yield r
@@ -141,9 +142,9 @@ package object knobs {
     case URIResource(uri) => Task(scala.io.Source.fromFile(uri).mkString + "\n")
     case FileResource(f) => Task(scala.io.Source.fromFile(f).mkString)
     case ClassPathResource(r) =>
-      Task(getClass.getClassLoader.getResource(r)) flatMap { x =>
+      Task(getClass.getClassLoader.getResourceAsStream(r)) flatMap { x =>
         if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
-        else Task(scala.io.Source.fromFile(x.toURI).mkString)
+        else Task(scala.io.Source.fromInputStream(x).mkString)
       }
     case _ => Task.fail(ConfigError(path, "Not a file resource"))
   }

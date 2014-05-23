@@ -1,9 +1,9 @@
 
 import oncue.build._
 
-organization := "oncue.svc.knobs"
+organization in Global := "oncue.svc.knobs"
 
-scalaVersion := "2.10.4"
+scalaVersion in Global := "2.10.4"
 
 lazy val knobs = project.in(file(".")).aggregate(core, typesafe)
 
