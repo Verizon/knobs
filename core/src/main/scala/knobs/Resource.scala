@@ -25,6 +25,7 @@ sealed trait Resource {
         case Exact(s) => Exact(s"$p.$s")
         case Prefix(s) => Prefix(s"$p.$s")
       })
+      case FallbackChain(r, rs) => FallbackChain(r.resolve(child), rs.map(_.resolve(child)))
     }
   }
 
@@ -34,13 +35,27 @@ sealed trait Resource {
       case FileResource(f) => f.toString
       case SysPropsResource(p) => s"System properties $p.*"
       case ClassPathResource(r) => getClass.getClassLoader.getResource(r).toURI.toString
+      case FallbackChain(r, rs) =>
+        val a = r.show
+        val b = rs.map(_.show).mkString(" or ")
+        s"$a or $b"
     }
+
+  /**
+   * Returns a resource that tries this resource and if it fails, falls back to the
+   * given resource.
+   */
+  def or(other: Resource): Resource = this match {
+    case FallbackChain(r, rs) => FallbackChain(r, rs :+ other)
+    case r => FallbackChain(r, Vector(other))
+  }
 }
 
 case class FileResource(f: File) extends Resource
 case class URIResource(u: URI) extends Resource
 case class ClassPathResource(name: String) extends Resource
 case class SysPropsResource(pattern: Pattern) extends Resource
+case class FallbackChain(r: Resource, rs: Vector[Resource]) extends Resource
 
 object Resource {
   def apply(f: File): Resource = FileResource(f)

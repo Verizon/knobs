@@ -49,6 +49,11 @@ object Test extends Properties("Knobs") {
       cfg.lookup[String]("path.separator").map(_.isDefined)
     }
 
+  lazy val fallbackTest: Task[Prop] =
+    withLoad(List(Required(
+      ClassPathResource("foobar.cfg") or
+      ClassPathResource("pathological.cfg")))) { _.lookup[Int]("aa").map(_ == Some(1)) }
+
   property("load-pathological-config") = loadTest.run
 
   property("interpolation") = interpTest.run
@@ -56,5 +61,7 @@ object Test extends Properties("Knobs") {
   property("import") = importTest.run
 
   property("load-system-properties") = loadPropertiesTest.run
+
+  property("load-fallback-chain") = fallbackTest.run
 
 }

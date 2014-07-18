@@ -146,6 +146,11 @@ package object knobs {
         if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
         else Task(scala.io.Source.fromInputStream(x).mkString)
       }
+    case FallbackChain(r, rs) =>
+      val err: Task[String] = Task.fail(ConfigError(path, "Could not read any of ${path.show}"))
+      (r +: rs).foldRight(err) {
+        (a, b) => readFile(a) or b
+      }
     case _ => Task.fail(ConfigError(path, "Not a file resource"))
   }
 
