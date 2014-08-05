@@ -29,14 +29,14 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Add additional files to this `MutableConfig`, causing it to be reloaded to
    * add their contents.
    */
-  def add(paths: List[Worth[Resource]]): Task[Unit] =
+  def add(paths: List[KnobsResource]): Task[Unit] =
     addGroups(paths.map(x => ("", x)))
 
   /**
    * Add additional files to named groups in this `MutableConfig`, causing it to be
    * reloaded to add their contents.
    */
-  def addGroups(paths: List[(Name, Worth[Resource])]): Task[Unit] = {
+  def addGroups(paths: List[(Name, KnobsResource)]): Task[Unit] = {
     def fix[A](p: (String, A)) = (addDot(p._1), p._2)
     for {
       _ <- base.paths.modify(prev => prev ++ paths.map(fix))

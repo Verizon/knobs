@@ -6,7 +6,7 @@ import scalaz.concurrent.Task
  * Global configuration data. This is the top-level config from which
  * `Config` values are derived by choosing a root location.
  */
-case class BaseConfig(paths: IORef[List[(Name, Worth[Resource])]],
+case class BaseConfig(paths: IORef[List[(Name, KnobsResource)]],
                       cfgMap: IORef[Env],
                       subs: IORef[Map[Pattern, List[ChangeHandler]]]) {
 
