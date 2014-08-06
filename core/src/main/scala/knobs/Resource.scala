@@ -27,6 +27,8 @@ abstract class ResourceBox {
   val R: Resource[R]
   val resource: R
   def or(b: ResourceBox) = Resource.box(Resource.or(resource, b.resource)(R, b.R))
+  override def equals(other: Any) = other.asInstanceOf[ResourceBox].resource == resource
+  override def hashCode = resource.hashCode
 }
 
 object ResourceBox {
