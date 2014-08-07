@@ -15,7 +15,7 @@ trait Resource[R] extends Show[R] {
     * For example, if this resource is the URI "http://tempuri.org/foo/", and the given
     * path is "bar/baz", then the resulting resource should be the URI "http://tempuri.org/foo/bar/baz"
     */
-  def resolve(r: R, child: String): R
+  def resolve(r: R, child: Path): R
 
   /** Loads a resource, returning a list of config directives in `Task` */
   def load(path: Worth[R]): Task[List[Directive]]
@@ -54,8 +54,10 @@ object SysPropsResource {
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
 
+  def apply[B](r: B)(implicit B: Resource[B]): ResourceBox = box(r)
+
   // Box up a resource with the evidence that it is a resource.
-  private [knobs] def box[B](r: B)(implicit B: Resource[B]): ResourceBox =
+  def box[B](r: B)(implicit B: Resource[B]): ResourceBox =
     new ResourceBox {
       type R = B
       val R = B
@@ -123,19 +125,6 @@ object Resource {
         res.toURI.toString
     }
   }
-
-  /*def show: String =
-    this match {
-      case URIResource(u) => u.toString
-      case FileResource(f) => f.toString
-      case SysPropsResource(p) => s"System properties $p.*"
-      case ClassPathResource(r) => getClass.getClassLoader.getResource(r).toURI.toString
-      case FallbackChain(r, rs) =>
-        val a = r.show
-        val b = rs.map(_.show).mkString(" or ")
-        s"$a or $b"
-    }*/
-
 
   implicit def sysPropsResource: Resource[Pattern] = new Resource[Pattern] {
     import ConfigParser.ParserOps

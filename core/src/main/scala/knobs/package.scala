@@ -18,6 +18,7 @@ package object knobs {
 
   type Path = String
 
+  /** exists r. Resource r ⇒ Required r | Optional r */
   type KnobsResource = Worth[ResourceBox]
 
   /**
