@@ -17,7 +17,7 @@ object Zookeeper {
       client
     }.flatMap(c => k(c).onFinish(_ => Task(c.close)))
 
-  implicit def zkResource: Resource[ZNode] = new Resource[ZNode] {
+  implicit val zkResource: Watchable[ZNode] = new Watchable[ZNode] {
     def resolve(r: ZNode, child: Path): ZNode =
       r.copy(path = Resource.resolveName(r.path, child))
     def load(node: Worth[ZNode]) = {
@@ -28,5 +28,22 @@ object Zookeeper {
         })
       }
     }
+    def watch(node: Worth[Znode]) = for {
+      ds <- load(node).flatMap
+      rs <- recursiveImports(node.worth, ds)
+      ticks <- withClient(node.worth.connectionString) { c =>
+        Process.emitAll(rs).flatMap {
+          case ZNode(_, path) =>
+            Task.async(k =>
+              c.getData.usingWatcher(new CuratorWatcher {
+                def process(p: WatchedEvent) = p.eventType match {
+                  case NodeDataChanged => k(())
+                  case _ => ()
+                }
+              }).forPath(path))
+        }
+      }
+    } yield (ds, ticks)
   }
+
 }

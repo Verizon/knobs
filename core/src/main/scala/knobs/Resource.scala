@@ -5,30 +5,50 @@ import java.io.File
 import scalaz._
 import scalaz.syntax.show._
 import scalaz.concurrent.Task
+import scalaz.stream._
 
 /** Resources from which configuration files can be loaded */
 trait Resource[R] extends Show[R] {
   /**
-    * Returns a resource that has the given `child` path resolved against `r`.
-    * If the given path is absolute (not relative), a new resource to that path should be returned.
-    * Otherwise the given path should be appended to this resource's path.
-    * For example, if this resource is the URI "http://tempuri.org/foo/", and the given
-    * path is "bar/baz", then the resulting resource should be the URI "http://tempuri.org/foo/bar/baz"
-    */
+   * Returns a resource that has the given `child` path resolved against `r`.
+   * If the given path is absolute (not relative), a new resource to that path should be returned.
+   * Otherwise the given path should be appended to this resource's path.
+   * For example, if this resource is the URI "http://tempuri.org/foo/", and the given
+   * path is "bar/baz", then the resulting resource should be the URI "http://tempuri.org/foo/bar/baz"
+   */
   def resolve(r: R, child: Path): R
 
-  /** Loads a resource, returning a list of config directives in `Task` */
+  /**
+   * Loads a resource, returning a list of config directives in `Task`.
+   */
   def load(path: Worth[R]): Task[List[Directive]]
 }
 
+trait Watchable[R] extends Resource[R] {
+  def watch(path: Worth[R]): Task[(List[Directive], Process[Task, Unit])]
+}
+
 /** An existential resource. Equivalent to the (Haskell-style) type `exists r. Resource r ⇒ r` */
-abstract class ResourceBox {
+sealed trait ResourceBox {
   type R
   val R: Resource[R]
   val resource: R
   def or(b: ResourceBox) = Resource.box(Resource.or(resource, b.resource)(R, b.R))
   override def equals(other: Any) = other.asInstanceOf[ResourceBox].resource == resource
   override def hashCode = resource.hashCode
+  def watchable: Option[Watchable[R]] = None
+}
+
+private [knobs] case class WatchBox[W](value: W, W: Watchable[W]) extends ResourceBox {
+  type R = W
+  val R = W
+  val resource = value
+  override def watchable = Some(W)
+}
+
+object Watched {
+  def apply[R:Watchable](r: R): ResourceBox =
+    new WatchBox(r, implicitly[Watchable[R]])
 }
 
 object ResourceBox {
@@ -39,21 +59,29 @@ object ResourceBox {
   }
 }
 
+
 object FileResource {
+  /** Creates a new resource that loads a configuration from a file. */
   def apply(f: File): ResourceBox = Resource.box(f)
 }
 
 object ClassPathResource {
-  def apply(s: String): ResourceBox = Resource.box(Resource.ClassPath(s))
+  /** Creates a new resource that loads a configuration from the classpath. */
+  def apply(s: Path): ResourceBox = Resource.box(Resource.ClassPath(s))
 }
 
 object SysPropsResource {
+  /**
+   * Creates a new resource that gets config values from system properties
+   * matching the given pattern.
+   */
   def apply(p: Pattern): ResourceBox = Resource.box(p)
 }
 
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
 
+  /** Construct a new boxed resource from a valid `Resource` */
   def apply[B](r: B)(implicit B: Resource[B]): ResourceBox = box(r)
 
   // Box up a resource with the evidence that it is a resource.
@@ -64,10 +92,21 @@ object Resource {
       val resource = r
     }
 
+  /**
+   * Convenience method for resolving a path-like name relative to another.
+   * `resolve("foo/bar", "baz")` = `"foo/baz"`
+   * `resolve("foo/bar/", "baz")` = `"foo/bar/baz"`
+   * `resolve(_, "/bar")` = `"/bar"`
+   */
   def resolveName(parent: String, child: String) =
     if (child.head == '/') child
     else parent.substring(0, parent.lastIndexOf('/') + 1) ++ child
 
+  /**
+   * Convenience method for loading a file-like resource.
+   * `load` is a `Task` that does the work of turning the resource into a `String`
+   * that gets parsed by the `ConfigParser`.
+   */
   def loadFile[R:Resource](path: Worth[R], load: Task[String]): Task[List[Directive]] = {
     import ConfigParser.ParserOps
     for {

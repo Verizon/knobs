@@ -4,11 +4,13 @@ import scalaz.syntax.foldable._
 import scalaz.syntax.traverse._
 import scalaz.syntax.monad._
 import scalaz.std.list._
+import scalaz.stream._
+import scalaz.stream.merge.mergeN
 
 package object knobs {
   import Resource._
 
-  private [knobs] type Loaded = Map[KnobsResource, List[Directive]]
+  private [knobs] type Loaded = Map[KnobsResource, (List[Directive], Process[Task, Unit])]
 
   /** The name of a configuration property */
   type Name = String
@@ -32,7 +34,7 @@ package object knobs {
   import P.ParserOps
 
   /**
-   * Create a `MutableConfig` from the contents of the named files. Throws an
+   * Create a `MutableConfig` from the contents of the given resources. Throws an
    * exception on error, such as if files do not exist or contain errors.
    *
    * File names have any environment variables expanded prior to the
@@ -64,8 +66,9 @@ package object knobs {
     def go(seen: Loaded, path: KnobsResource): Task[Loaded] = {
       def notSeen(n: KnobsResource): Boolean = seen.get(n).isEmpty
       for {
-        ds <- loadOne(path)
-        seenp = seen + (path -> ds)
+        p <- loadOne(path)
+        (ds, _) = p
+        seenp = seen + (path -> p)
         box = path.worth
         r <- Foldable[List].foldLeftM(importsOf(box.resource, ds)(box.R).
           filter(notSeen), seenp)(go)
@@ -75,11 +78,15 @@ package object knobs {
   }
 
   private [knobs] def loadp(paths: List[(Name, KnobsResource)]): Task[BaseConfig] = for {
-    ds <- loadFiles(paths.map(_._2))
+    loaded <- loadFiles(paths.map(_._2))
     p <- IORef(paths)
-    m <- flatten(paths, ds).flatMap(IORef(_))
+    m <- flatten(paths, loaded).flatMap(IORef(_))
     s <- IORef(Map[Pattern, List[ChangeHandler]]())
-  } yield BaseConfig(paths = p, cfgMap = m, subs = s)
+    bc = BaseConfig(paths = p, cfgMap = m, subs = s)
+    // TODO: Give these errors to a proper error handling mechanism
+    ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
+    _ <- Task(ticks.evalMap(_ => bc.reload).run.runAsync(_.fold(_.printStackTrace, _ => ())))
+  } yield bc
 
   private [knobs] def addDot(p: String): String =
     if (p.isEmpty || p.endsWith(".")) p else p + "."
@@ -90,7 +97,7 @@ package object knobs {
       val box = f.worth
       files.get(f) match {
         case None => Task.now(m)
-        case Some(ds) =>
+        case Some((ds, _)) =>
           Foldable[List].foldLeftM(ds, m)(directive(pfx, box.resource, _, _)(box.R))
       }
     }
@@ -108,7 +115,7 @@ package object knobs {
         case Import(path) =>
           val fp = f resolve path
           files.get(fp.required) match {
-            case Some(ds) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
+            case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
             case _ => Task.now(m)
           }
       }
@@ -140,18 +147,35 @@ package object knobs {
     ) else Task.now(s)
   }
 
-  private [knobs] def importsOf[R:Resource](path: R, d: List[Directive]): List[KnobsResource] =
+  /** Get all the imports in the given list of directives, relative to the given path */
+  def importsOf[R:Resource](path: R, d: List[Directive]): List[KnobsResource] =
+    resolveImports(path, d).map(_.required)
+
+  /** Get all the imports in the given list of directives, relative to the given path */
+  def resolveImports[R:Resource](path: R, d: List[Directive]): List[R] =
     d match {
-      case Import(ref) :: xs => (path resolve ref).required :: importsOf(path, xs)
-      case Group(_, ys) :: xs => importsOf(path, ys) ++ importsOf(path, xs)
-      case _ :: xs => importsOf(path, xs)
+      case Import(ref) :: xs => (path resolve ref) :: resolveImports(path, xs)
+      case Group(_, ys) :: xs => resolveImports(path, ys) ++ resolveImports(path, xs)
+      case _ :: xs => resolveImports(path, xs)
       case _ => Nil
     }
 
-  private [knobs] def loadOne(path: KnobsResource): Task[List[Directive]] = {
+  /**
+   * Get all the imports in the given list of directive, recursively resolving
+   * imports relative to the given path by loading them.
+   */
+  def recursiveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
+    resolveImports(path, d).traverse(r =>
+      implicitly[Resource[R]].load(Required(r)).flatMap(dds =>
+        recursiveImports(r, dds))).map(_.flatten)
+
+  private [knobs] def loadOne(path: KnobsResource): Task[(List[Directive], Process[Task, Unit])] = {
     val box = path.worth
     val r: box.R = box.resource
-    box.R.load(path.map[box.R](_ => r))
+    box.watchable match {
+      case Some(ev) => ev.watch(path.map(_ => r))
+      case _ => box.R.load(path.map[box.R](_ => r)).map(x => (x, Process.halt))
+    }
   }
 
   private [knobs] def notifySubscribers(
