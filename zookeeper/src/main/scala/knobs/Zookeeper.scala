@@ -3,7 +3,14 @@ package knobs
 import scala.collection.JavaConversions._
 import scalaz.concurrent.Task
 import org.apache.curator.framework._
+import org.apache.curator.framework.api._
 import org.apache.curator.retry._
+import org.apache.zookeeper.WatchedEvent
+import org.apache.zookeeper.Watcher.Event.EventType._
+import scalaz.stream._
+import scalaz.\/
+import \/._
+import scalaz.stream.merge.mergeN
 
 case class ZNode(connectionString: String, path: Path)
 
@@ -28,22 +35,25 @@ object Zookeeper {
         })
       }
     }
-    def watch(node: Worth[Znode]) = for {
-      ds <- load(node).flatMap
+    def watch(node: Worth[ZNode]) = for {
+      ds <- load(node)
       rs <- recursiveImports(node.worth, ds)
       ticks <- withClient(node.worth.connectionString) { c =>
-        Process.emitAll(rs).flatMap {
-          case ZNode(_, path) =>
-            Task.async(k =>
-              c.getData.usingWatcher(new CuratorWatcher {
-                def process(p: WatchedEvent) = p.eventType match {
-                  case NodeDataChanged => k(())
+        Task { Process.emitAll(rs).evalMap {
+          case ZNode(_, path) => Task {
+            Process.eval(Task.async { (k: (Throwable \/ Unit) => Unit) =>
+              val _ = c.getData.usingWatcher(new CuratorWatcher {
+                def process(p: WatchedEvent) = p.getType match {
+                  case NodeDataChanged => k(right(()))
                   case _ => ()
                 }
-              }).forPath(path))
-        }
+              }).forPath(path)
+              ()
+            }).repeat
+          }
+        }}
       }
-    } yield (ds, ticks)
+    } yield (ds, mergeN(ticks))
   }
 
 }
