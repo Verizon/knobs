@@ -3,15 +3,17 @@ Knobs
 
 [![Build Status](http://jm-media.sc.intel.com:8080/buildStatus/icon?job=WebServices-knobs)](http://jm-media.sc.intel.com:8080/job/WebServices-knobs/)
 
-Knobs is a configuration library for Scala. It is based on the [Data.Configurator](https://github.com/bos/configurator/) library for Haskell.
+Knobs is a configuration library for Scala. It is based on the [Data.Configurator](https://github.com/bos/configurator/) library for Haskell, but is extended in a number of ways to make it more useful.
 
 Features include:
 
-  * Loading configurations from the file system, URIs, the class path, or system properties.
+  * Loading configurations from the file system, URIs, the classpath, and system properties.
   * A simple but flexible configuration language, supporting  several of the most commonly needed types of data, along with interpolation of strings from the configuration, environment variables (e.g. `$(HOME)`), or Java system properties (e.g. `$(path.separator)`).
   * Subscription-based notification of changes to configuration properties.
   * An `import` directive allows the configuration of a complex application to be split across several smaller files, or to be shared across several applications.
   * Helpful error messages when config files have errors in them.
+  * An extensible configuration loader. Extensions exist for loading config values from AWS, Typesafe Config, and ZooKeeper.
+  * Automatic reloading of the configuration when the source files change. Currently the only source type to support this is ZooKeeper.
 
 ## Configuration file format ###
 
