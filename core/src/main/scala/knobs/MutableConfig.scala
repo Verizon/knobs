@@ -131,5 +131,17 @@ case class MutableConfig(root: String, base: BaseConfig) {
    */
   def subscribe(p: Pattern, h: ChangeHandler): Task[Unit] =
     base.subs.modify(_.insertWith(p local root, List(h))(_ ++ _))
+
+  import scalaz.stream.Process
+
+  /**
+   * A process that produces chages to the configuration properties that match
+   * the given pattern
+   */
+  def changes(p: Pattern): Process[Task, (Name, Option[CfgValue])] = {
+    import scalaz.stream.async.signal
+    val sig = signal[(Name, Option[CfgValue])]
+    Process.eval(subscribe(p, (k, v) => sig.set((k, v)))).flatMap(_ => sig.discrete)
+  }
 }
 

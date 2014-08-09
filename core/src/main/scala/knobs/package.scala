@@ -18,6 +18,7 @@ package object knobs {
   /** A pure configuration environment map, detached from its sources */
   type Env = Map[Name, CfgValue]
 
+  /** A path-like string */
   type Path = String
 
   /** exists r. Resource r ⇒ Required r | Optional r */
@@ -83,8 +84,8 @@ package object knobs {
     m <- flatten(paths, loaded).flatMap(IORef(_))
     s <- IORef(Map[Pattern, List[ChangeHandler]]())
     bc = BaseConfig(paths = p, cfgMap = m, subs = s)
-    // TODO: Give these errors to a proper error handling mechanism
     ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
+    // TODO: Give these errors to a proper error handling mechanism
     _ <- Task(ticks.evalMap(_ => bc.reload).run.runAsync(_.fold(_.printStackTrace, _ => ())))
   } yield bc
 

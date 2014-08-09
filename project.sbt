@@ -5,7 +5,7 @@ organization in Global := "oncue.svc.knobs"
 
 scalaVersion in Global := "2.10.4"
 
-lazy val knobs = project.in(file(".")).aggregate(core, typesafe)
+lazy val knobs = project.in(file(".")).aggregate(core, typesafe, zookeeper)
 
 lazy val core = project
 
