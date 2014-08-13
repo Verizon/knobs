@@ -64,8 +64,8 @@ object ZooKeeper {
     val retryPolicy = new ExponentialBackoffRetry(1000, 3)
     for {
       config <- knobs.loadImmutable(
-         List(Required(FileResource(new File("/usr/share/oncue/etc/flask.cfg")) or
-                       ClassPathResource("oncue/flask.cfg"))))
+         List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
+                       ClassPathResource("oncue/zookeeper.cfg"))))
       loc  = config.require[String]("zookeeper.connectionString")
       path = config.require[String]("zookeeper.pathToConfig")
       c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
@@ -75,8 +75,8 @@ object ZooKeeper {
 
   /**
    * Task-based API. Loads the standard configuration from
-   * /usr/share/oncue/etc/flask.cfg or, failing that,
-   * from the classpath at oncue/flask.cfg.
+   * /usr/share/oncue/etc/zookeeper.cfg or, failing that,
+   * from the classpath at oncue/zookeeper.cfg.
    *
    * Expects `zookeeper.connectionString` to be defined in that cfg file,
    * which is a string of the form "hostname:port".
