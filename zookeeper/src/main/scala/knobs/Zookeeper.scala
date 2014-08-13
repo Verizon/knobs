@@ -66,8 +66,8 @@ object ZooKeeper {
       config <- knobs.loadImmutable(
          List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
                        ClassPathResource("oncue/zookeeper.cfg"))))
-      loc  = config.require[String]("zookeeper.connectionString")
-      path = config.require[String]("zookeeper.pathToConfig")
+      loc  = config.require[String]("zookeeper.connection-string")
+      path = config.require[String]("zookeeper.path-to-config")
       c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
       _ <- Task(c.start)
     } yield (box(ZNode(c, path)), c)
