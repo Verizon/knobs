@@ -34,6 +34,8 @@ sealed trait ResourceBox {
   val R: Resource[R]
   val resource: R
   def or(b: ResourceBox) = Resource.box(Resource.or(resource, b.resource)(R, b.R))
+  def required: KnobsResource = Required(this)
+  def optional: KnobsResource = Optional(this)
   override def equals(other: Any) = other.asInstanceOf[ResourceBox].resource == resource
   override def hashCode = resource.hashCode
   def watchable: Option[Watchable[R]] = None
@@ -159,7 +161,7 @@ object Resource {
     override def shows(r: String @@ ClassPath) = {
       val res = getClass.getClassLoader.getResource(r)
       if (res == null)
-        "Non-existing classpath resource $r"
+        s"missing classpath resource $r"
       else
         res.toURI.toString
     }
