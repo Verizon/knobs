@@ -42,6 +42,9 @@ object aws {
   def zone: Task[Config] =
     fetch("meta-data/placement/availability-zone").flatMap(convert("availability-zone"))
 
+  def region: Task[Config] =
+    fetch("meta-data/placement/availability-zone").map(_.dropRight(1)).flatMap(convert("region"))
+
   def localIP: Task[Config] =
     fetch("meta-data/local-ipv4").flatMap(convert("local-ipv4", section = "network"))
 
@@ -62,5 +65,6 @@ object aws {
       e <- localIP
       f <- publicIP
       g <- userdata
-    } yield a ++ b ++ c ++ d ++ e ++ f ++ g) or Task.now(Config.empty) // fallback for running someplace other than aws.
+      h <- region
+    } yield a ++ b ++ c ++ d ++ e ++ f ++ g ++ h) or Task.now(Config.empty) // fallback for running someplace other than aws.
 }
