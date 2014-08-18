@@ -20,10 +20,13 @@ object aws {
 
   private val defaultFormating: String => String = x => "\"" +x+ "\""
 
-  def fetch(child: Path, parent: Path = root, version: Path = revision): Task[String] =
-    Task(Source.fromInputStream(new URL(s"$parent/$version/$child").openConnection.getInputStream).mkString)
+  /**
+   * attempt to read an item of metadata from the AWS metadata service in under 300ms.
+   */
+  private def fetch(child: Path, parent: Path = root, version: Path = revision): Task[String] =
+    Task(Source.fromInputStream(new URL(s"$parent/$version/$child").openConnection.getInputStream).mkString).timed(300)
 
-  def convert(field: String, section: String = "aws", formatter: String => String = defaultFormating)(response: String): Task[Config] =
+  private def convert(field: String, section: String = "aws", formatter: String => String = defaultFormating)(response: String): Task[Config] =
     Config.parse(s"$section { $field = ${formatter(response)} }").fold(Task.fail, Task.now)
 
   def userdata: Task[Config] = fetch("user-data")
@@ -41,6 +44,9 @@ object aws {
 
   def zone: Task[Config] =
     fetch("meta-data/placement/availability-zone").flatMap(convert("availability-zone"))
+
+  def region: Task[Config] =
+    fetch("meta-data/placement/availability-zone").map(_.dropRight(1)).flatMap(convert("region"))
 
   def localIP: Task[Config] =
     fetch("meta-data/local-ipv4").flatMap(convert("local-ipv4", section = "network"))
@@ -62,5 +68,6 @@ object aws {
       e <- localIP
       f <- publicIP
       g <- userdata
-    } yield a ++ b ++ c ++ d ++ e ++ f ++ g) or Task.now(Config.empty) // fallback for running someplace other than aws.
+      h <- region
+    } yield a ++ b ++ c ++ d ++ e ++ f ++ g ++ h) or Task.now(Config.empty) // fallback for running someplace other than aws.
 }
