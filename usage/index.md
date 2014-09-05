@@ -77,12 +77,17 @@ On-disk files can be reloaded ([see below](#reloading) for information about rel
 Whilst its rare to use Java system properties to set values, there may be occasions where you want to use them (perhaps as an override of a specific key). Here's an example:
 
 ```
-import knobs.{Required,FileResource,Config}
+import knobs.{Required,SysPropsResource,Config,Prefix}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  	Required(FileResource(new File("/path/to/foo.cfg"))))
+  	Required(SysPropsResource(Prefix("oncue"))))
 ```
+
+Given that system properties are just keys and value pairs, *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
+
+* `Exact`: the exact name of the system property you want to load. Useful when you want one specific key.
+* `Prefix`: In the case where you want to load multiple system properties, you can do so using a prefix; knobs will then go an load all the system properties with that prefix name.
 
 
 <a name="reloading"></a>
