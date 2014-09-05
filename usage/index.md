@@ -103,19 +103,33 @@ libraryDependencies += "oncue.svc.knobs" %% "zookeeper" % "x.x.+"
 This will put the Zookeeper knobs supporting classes into your project classpath. Regardless of which type of connection management you choose (see below), the mechanism for defining the resource is the same:
 
 ```
+import knobs._
+
+// `r` is provided by the connection management options below
+knobs.load(Required(r))
 
 ```
 
 ### Configuring Zookeeper Knobs with Knobs
 
+The Zookeeper module of knobs is itself configured using knobs (the author envisions the reader giving high-fives all around after reading that); this is simply to provide a location for the Zookeeper cluster. There is a default shipped inside the knobs zookeeper JAR, so if you do nothing, the system, will use the following (default) configuration:
 
+```
+zookeeper {
+  connection-string = "localhost:2181"
+  path-to-config = "/knobs.cfg"
+}
+
+```
+
+Typically speaking this configuration will be overridden at deployment time and the right zookeeper cluster location will be provided.
 
 ### Functional Connection Management
 
 For the functional implementation, you essentially have to build your application within the context of the `Task[A]` that contains the connection to Zookeeper (thus allowing real-time updates to the configuration). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will basically make this impossible and you'll need to use the imperative alternative. 
 
 ```
-import knobs._
+import knobs.{Zookeeper,Required}
 
 ZooKeeper.withDefault { r => for {
   cfg <- load(Required(r))
@@ -132,7 +146,7 @@ ZooKeeper.withDefault { r => for {
 Sadly, for most systems using any kind of framework, you'll likely have to go with the imperative implementation to knit knobs correctly into the application lifecycle.
 
 ```
-import knobs._
+import knobs.{Zookeeper,Required}
 
 // somewhere at the edge of the world call this function
 // to connect to zookeeper. Connection will then stay open
@@ -140,7 +154,7 @@ import knobs._
 val (r, close) = ZooKeeper.unsafeDefault
 
 // Application code here
-
+val cfg = knobs.load(Required(r))
 
 // then at some time later (whenever, essentially) close 
 // the connection to zookeeper when you wish to shut 
