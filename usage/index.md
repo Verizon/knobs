@@ -11,7 +11,7 @@ section: "usage"
 First up you need to add the dependency for the monitoring library to your `build.scala` or your `build.sbt` file:
 
 ````
-libraryDependencies += "oncue.svc.knobs" %% "core" % "1.1.+"
+libraryDependencies += "oncue.svc.knobs" %% "core" % "x.x.+"
 ````
 (check for the latest release by [looking on the nexus](http://nexus.svc.oncue.com/nexus/content/repositories/releases/oncue/svc/knobs/core_2.10/)).
 
@@ -27,6 +27,9 @@ In the general case, configurations are loaded using the `load` method in the `k
   * `URLResource` - loads any URI supported by the class `java.net.URI`.
   * `ClassPathResource` - loads a file from the classpath.
   * `SysPropsResource` - loads system properties matching a specific pattern.
+  * `Zookeeper`* - loads the specified zookeeper znode tree (including children from the specified location).
+  
+`*` requires the "zookeeper knobs" dependency in addition to knobs core.
 
 Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it a `Required` configuration `Resource` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
 
@@ -88,6 +91,66 @@ Given that system properties are just keys and value pairs, *Knobs* provides a c
 
 * `Exact`: the exact name of the system property you want to load. Useful when you want one specific key.
 * `Prefix`: In the case where you want to load multiple system properties, you can do so using a prefix; knobs will then go an load all the system properties with that prefix name.
+
+## Zookeeper
+
+The zookeeper support can be used in two different styles, depending on your application design you can choose the implementation that best suits your specific style or requirements. Eitherway, ensure you add the following dependency to your project:
+
+```
+libraryDependencies += "oncue.svc.knobs" %% "zookeeper" % "x.x.+"
+```
+
+This will put the Zookeeper knobs supporting classes into your project classpath. Regardless of which type of connection management you choose (see below), the mechanism for defining the resource is the same:
+
+```
+
+```
+
+### Configuring Zookeeper Knobs with Knobs
+
+
+
+### Functional Connection Management
+
+For the functional implementation, you essentially have to build your application within the context of the `Task[A]` that contains the connection to Zookeeper (thus allowing real-time updates to the configuration). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will basically make this impossible and you'll need to use the imperative alternative. 
+
+```
+import knobs._
+
+ZooKeeper.withDefault { r => for {
+  cfg <- load(Required(r))
+
+  // Application code here
+
+} yield () }.run
+
+```
+
+
+### Imperative Connection Management
+
+Sadly, for most systems using any kind of framework, you'll likely have to go with the imperative implementation to knit knobs correctly into the application lifecycle.
+
+```
+import knobs._
+
+// somewhere at the edge of the world call this function
+// to connect to zookeeper. Connection will then stay open
+// up until the point the close task is executed.
+val (r, close) = ZooKeeper.unsafeDefault
+
+// Application code here
+
+
+// then at some time later (whenever, essentially) close 
+// the connection to zookeeper when you wish to shut 
+// down application.
+close.run
+
+```
+
+Where possible, do try and design your applications as `Free[A]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one. 
+
 
 
 <a name="reloading"></a>
