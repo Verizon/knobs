@@ -17,27 +17,75 @@ libraryDependencies += "oncue.svc.knobs" %% "core" % "1.1.+"
 
 Once you have the dependency added to your project and SBT `update` downloaded JAR, you're ready to start adding configuration knobs to your project!
 
+<a name="resources"></a>
+
 # Configuration Resources
 
-In the general case, configurations are loaded using the `load` method in the `knobs` package. Configurations are loaded from `Resource`s. The types of resources supported are:
+In the general case, configurations are loaded using the `load` method in the `knobs` package. Configurations are loaded from `Resource`s. A `Resource` is an abstract concept to model arbitrary locations from which a configuration source can be loaded. At the time of writing, the following `Resource` implementations were supported:
 
-  * `FileResource` - loads a file from the file system
-  * `URLResource` - loads any URI supported by the class `java.net.URI`
-  * `ClassPathResource` - loads a file from the classpath
-  * `SysPropsResource` - loads system properties matching a specific pattern
+  * `FileResource` - loads a file from the file system.
+  * `URLResource` - loads any URI supported by the class `java.net.URI`.
+  * `ClassPathResource` - loads a file from the classpath.
+  * `SysPropsResource` - loads system properties matching a specific pattern.
 
-Resources can be declared `Required` or `Optional`. It's an error to load a `Required` file that doesn't exist. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
+Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it a `Required` configuration `Resource` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
 
-For example, to require the file "foo.cfg" from the classpath:
+Every interaction with *Knobs* will result in a `Config` enclosed in a `scalaz.concurrent.Task` monad. Until this task is executed (see the Scalaz documentation for the exact semantics) the resources are loaded and the configuration is parsed. You can get the `Config` out of it with `cfg.run`, but this is not the recommended usage pattern. The recommended way of accessing the contents of a `Task` is to use its `map` and `flatMap` methods (more on this in the specific resource usage and best practices later in this document)
+
+## Classpath Resources
+
+To require the file "foo.cfg" from the classpath:
 
 ```
-import knobs._
+import knobs.{Required,ClassPathResource,Config}
+import scalaz.concurrent.Task
 
-val cfg: Task[Config] = load(Required(ClassPathResource("foo.cfg")))
+val cfg: Task[Config] = knobs.loadImmutable(
+  Required(ClassPathResource("foo.cfg")))
 ```
 
-The `Task` data type represents an I/O action that loads the file and parses the configuration. You can get the `Config` out of it with `cfg.run`, but this is not the recommended usage pattern. The recommended way of accessing the contents of a `Task` is to use its `map` and `flatMap` methods.
+This of course assumes that the `foo.cfg` file is located in the root of the classpath (`/`). If you had a file that was not in the root, you could simply do something like:
 
+```
+import knobs.{Required,ClassPathResource,Config}
+import scalaz.concurrent.Task
+
+val cfg: Task[Config] = knobs.loadImmutable(
+  	Required(ClassPathResource("subfolder/foo.cfg")))
+```
+
+Classpath resources are always immutable. They can technically be reloaded, but this generally does not serve any use what-so-ever as the file that is being loaded exists inside the application JAR so is a fixed entity at deploy time.
+
+
+## File Resources
+
+`File` resources are probably the most common type of resource you might want to interact with. Here's an example:
+
+```
+import java.io.File
+import knobs.{Required,FileResource,Config}
+import scalaz.concurrent.Task
+
+val cfg: Task[Config] = knobs.loadImmutable(
+  	Required(FileResource(new File("/path/to/foo.cfg"))))
+```
+
+On-disk files can be reloaded ([see below](#reloading) for information about reloading)
+
+## System Property Resources
+
+Whilst its rare to use Java system properties to set values, there may be occasions where you want to use them (perhaps as an override of a specific key). Here's an example:
+
+```
+import knobs.{Required,FileResource,Config}
+import scalaz.concurrent.Task
+
+val cfg: Task[Config] = knobs.loadImmutable(
+  	Required(FileResource(new File("/path/to/foo.cfg"))))
+```
+
+
+<a name="reloading"></a>
 
 # Dynamic Reloading
 
@@ -51,4 +99,11 @@ cfg.flatMap(_.subscribe {
   case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
 })
 ```
+
+<a name="best-practice"></a>
+
+# Best Practices
+
+TBD
+
 
