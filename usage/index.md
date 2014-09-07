@@ -227,20 +227,55 @@ This simple statement adds the following configuration keys to the in-memory con
     <tr>
       <td>Key</td>
       <td>Data type</td>
+      <td>Description</td>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td></td>
-      <td></td>
+      <td>aws.user-data</td>
+      <td>Config</td>
+      <td>Dynamically embed Knobs configuration format strings in the AWS instance user-data and knobs will extract that and graft it to the running Config.</td>
     </tr>
     <tr>
-      <td></td>
-      <td></td>
+      <td>aws.security-groups</td>
+      <td>Seq[String]</td>
+      <td>The AWS-assigned reference for this AMI.</td>
     </tr>
+    <tr>
+      <td>aws.meta-data.instance-id</td>
+      <td>String</td>
+      <td>The AWS-assigned reference for this instance.</td>
+    </tr>
+    <tr>
+      <td>aws.meta-data.ami-id</td>
+      <td>String</td>
+      <td>The AWS-assigned reference for this AMI.</td>
+    </tr>
+    <tr>
+      <td>aws.meta-data.placement.availability-zone</td>
+      <td>String</td>
+      <td>The AWS data centre name the application is in.</td>
+    </tr>
+    <tr>
+      <td>aws.meta-data.placement.region</td>
+      <td>String</td>
+      <td>The AWS geographic region the application is in.</td>
+    </tr>
+    <tr>
+      <td>aws.meta-data.local-ipv4</td>
+      <td>String</td>
+      <td>Local LAN (internal) IP address of the host machine</td>
+    </tr>
+    <tr>
+      <td>aws.meta-data.public-ipv4</td>
+      <td>String</td>
+      <td>External IP address of the host machine. Not applicable for machines within VPCs; not guaranteed to have a value.</td>
+    </tr>
+
   </tbody>
 </table>
 
+If *Knobs* is configured to load AWS values, but finds that it is in actual fact not running in AWS (for example in the local dev scenario) it will just ignore these keys and fail to fetch them gracefully (another good reason you should always `lookup` and not `require` for these keys).
 
 <a name="reloading"></a>
 
