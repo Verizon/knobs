@@ -165,6 +165,36 @@ close.run
 
 Where possible, do try and design your applications as `Free[A]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one. 
 
+<a name="reading"></a>
+
+# Reading Values
+
+Once you have a `Config` instance, and you want to lookup some values from said configuration, the API is fortunately very simple. Consider the following example:
+
+```
+// load some configuration
+val config: Task[Config] =
+  knobs.loadImmutable(Required(FileResource(...))) or
+  knobs.loadImmutable(Required(ClassPathResource(...)))
+
+// do something with 
+val connection: Task[Connection] =
+  for {
+    cfg <- config
+    usr = cfg.require[String]("db.username")
+    pwd = cfg.require[String]("db.password")
+    prt = cfg.lookup[String]("db.port")
+  } yield Connection(usr,pwd,port)
+
+```
+
+There are two APIs at play here: 
+
+* `cfg.require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example. 
+
+* `cfg.lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`. 
+
+Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example: if this were a data base application and the connection to the database was not properly configured, the whole application is broken anyway so it might as well error out. 
 
 
 <a name="reloading"></a>
