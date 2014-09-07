@@ -199,11 +199,9 @@ Typically you will want to use `lookup` more than you use `require`, but there a
 
 In addition to these general purposes lookup APIs, `Config` has two other useful functions:
 
-`++`: allows you to add two configuration objects together; this can be useful if you're loading multiple configurations from different sources which is so often the case.
+* `++`: allows you to add two configuration objects together; this can be useful if you're loading multiple configurations from different sources which is so often the case.
 
-`subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if - for example - you only wanted to collect keys in the "foo" section of the configuration: 
-
-
+* `subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if - for example - you only wanted to collect keys in the "foo" section of the configuration: `cfg.subconfig("foo")`.
 
 
 <a name="reloading"></a>
