@@ -190,11 +190,20 @@ val connection: Task[Connection] =
 
 There are two APIs at play here: 
 
-* `cfg.require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example. 
+* `require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example. 
 
-* `cfg.lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`. 
+* `lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`. 
+
 
 Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example: if this were a data base application and the connection to the database was not properly configured, the whole application is broken anyway so it might as well error out. 
+
+In addition to these general purposes lookup APIs, `Config` has two other useful functions:
+
+`++`: allows you to add two configuration objects together; this can be useful if you're loading multiple configurations from different sources which is so often the case.
+
+`subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if - for example - you only wanted to collect keys in the "foo" section of the configuration: 
+
+
 
 
 <a name="reloading"></a>
