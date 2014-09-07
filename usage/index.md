@@ -203,6 +203,44 @@ In addition to these general purposes lookup APIs, `Config` has two other useful
 
 * `subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if - for example - you only wanted to collect keys in the "foo" section of the configuration: `cfg.subconfig("foo")`.
 
+<a name="aws"></a>
+
+# AWS Configuration 
+
+If you're running *Knobs* from within an application that is hosted on AWS, you're in luck!... *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. Consider the following example:
+
+```
+import knobs._
+
+val c1: Task[Config] =
+  knobs.loadImmutable(Required(FileResource(...)))
+  
+val cfg: Task[Config] = 
+  c1.flatMap(AWS.config)
+
+```
+
+This simple statement adds the following configuration keys to the in-memory configuration:
+
+<table>
+  <thead>
+    <tr>
+      <td>Key</td>
+      <td>Data type</td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
 
 <a name="reloading"></a>
 
