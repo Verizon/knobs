@@ -24,7 +24,7 @@ object aws {
    * attempt to read an item of metadata from the AWS metadata service in under 300ms.
    */
   private def fetch(child: Path, parent: Path = root, version: Path = revision): Task[String] =
-    Task(Source.fromInputStream(new URL(s"$parent/$version/$child").openConnection.getInputStream).mkString).timed(300)
+    Task(Source.fromInputStream(new URL(s"$parent/$version/$child").openConnection.getInputStream).mkString).timed(300)(scalaz.stream.DefaultScheduler)
 
   private def convert(field: String, section: String = "aws", formatter: String => String = defaultFormating)(response: String): Task[Config] =
     Config.parse(s"$section { $field = ${formatter(response)} }").fold(Task.fail, Task.now)
