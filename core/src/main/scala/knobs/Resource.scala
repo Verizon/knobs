@@ -150,16 +150,16 @@ object Resource {
 
   implicit def classPathResource: Resource[String @@ ClassPath] = new Resource[String @@ ClassPath] {
     def resolve(r: String @@ ClassPath, child: String) =
-      ClassPath(resolveName(r, child))
+      ClassPath(resolveName(Tag.unwrap(r), child))
     def load(path: Worth[String @@ ClassPath]) = {
       val r = path.worth
-      loadFile(path, Task(getClass.getClassLoader.getResourceAsStream(r)) flatMap { x =>
+      loadFile(path, Task(getClass.getClassLoader.getResourceAsStream(Tag.unwrap(r))) flatMap { x =>
         if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
         else Task(scala.io.Source.fromInputStream(x).mkString)
       })
     }
     override def shows(r: String @@ ClassPath) = {
-      val res = getClass.getClassLoader.getResource(r)
+      val res = getClass.getClassLoader.getResource(Tag.unwrap(r))
       if (res == null)
         s"missing classpath resource $r"
       else
