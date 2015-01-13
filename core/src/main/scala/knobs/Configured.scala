@@ -10,7 +10,7 @@ import scalaz.std.option._
  * converted from a `CfgValue` to a destination type. If conversion
  * fails because the types are not compatible, `None` is returned.
  */
-sealed trait Configured[A] {
+trait Configured[A] {
   def apply(v: CfgValue): Option[A]
 }
 
