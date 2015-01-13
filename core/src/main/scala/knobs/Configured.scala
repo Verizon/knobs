@@ -18,7 +18,7 @@ trait Configured[A] {
 object Configured {
   def apply[A:Configured]: Configured[A] = implicitly[Configured[A]]
 
-  def apply[A](f: CfgValue => Option[A]): Configured[A] = new Configured {
+  def apply[A](f: CfgValue => Option[A]): Configured[A] = new Configured[A] {
     def apply(v: CfgValue) = f(v)
   }
 
@@ -26,8 +26,8 @@ object Configured {
     def point[A](a: => A) = new Configured[A] {
       def apply(v: CfgValue) = Some(a)
     }
-    def bind[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[A] {
-      def apply(v: CfgValue) = f(ca(v))(v)
+    def bind[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
+      def apply(v: CfgValue) = ca(v).flatMap(f(_)(v))
     }
   }
 
