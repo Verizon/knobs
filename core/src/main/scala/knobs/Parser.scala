@@ -8,7 +8,6 @@ import scalaz.syntax.traverse._
 import scalaz.std.list._
 import scalaz.std.option._
 import scala.concurrent.duration.Duration
-import java.util.concurrent.TimeUnit
 
 object ConfigParser {
   val P = new scalaparsers.Parsing[Unit] {}
@@ -87,6 +86,7 @@ object ConfigParser {
     word("true") >> unit(CfgBool(true)),
     word("false") >> unit(CfgBool(false)),
     string.map(CfgText(_)),
+    duration.attempt,
     scientific.map(d => CfgNumber(d.toDouble)),
     list.map(CfgList(_))
   ) scope "value"
@@ -141,13 +141,13 @@ object ConfigParser {
   lazy val decimal: Parser[BigInt] =
     digit.some.map(_.foldLeft(BigInt(0))(addDigit))
 
-  lazy val duration: Parser[CfgValue] =
-    token(scientific).flatMap(d => ident.flatMap { x =>
-      (for {
-        a <- \/.fromTryCatchNonFatal(TimeUnit.valueOf(x))
-        b <- \/.fromTryCatchNonFatal(Duration.create(d.toDouble, a))
-      } yield b).fold(e => fail(e.getMessage), o => unit(CfgDuration(o)))
-    } | unit(CfgNumber(d.toDouble)))
+  lazy val duration: Parser[CfgValue] = for {
+    d <- (scientific << whitespace.skipOptional)
+    x <- takeWhile(_.isLetter).map(_.mkString)
+    r <- \/.fromTryCatchNonFatal(Duration.create(1, x)).fold(
+      e => fail(e.getMessage),
+      o => unit(CfgDuration(o * d.toDouble)))
+  } yield r
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single
