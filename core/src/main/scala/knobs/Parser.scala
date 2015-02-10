@@ -7,6 +7,8 @@ import scalaz.syntax.foldable._
 import scalaz.syntax.traverse._
 import scalaz.std.list._
 import scalaz.std.option._
+import scala.concurrent.duration.Duration
+import java.util.concurrent.TimeUnit
 
 object ConfigParser {
   val P = new scalaparsers.Parsing[Unit] {}
@@ -138,6 +140,14 @@ object ConfigParser {
 
   lazy val decimal: Parser[BigInt] =
     digit.some.map(_.foldLeft(BigInt(0))(addDigit))
+
+  lazy val duration: Parser[CfgValue] =
+    scientific.flatMap(d => ident.flatMap { x =>
+      (for {
+        a <- \/.fromTryCatchNonFatal(TimeUnit.valueOf(x))
+        b <- \/.fromTryCatchNonFatal(Duration.create(d.toDouble, a))
+      } yield b).fold(e => fail(e.getMessage), o => unit(CfgDuration(o)))
+    } | unit(CfgNumber(d.toDouble)))
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single

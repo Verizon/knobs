@@ -34,9 +34,7 @@ object Configured {
 
   implicit val configuredDuration: Configured[Duration] = new Configured[Duration]{
     def apply(a: CfgValue) = a match {
-      case CfgText(b) =>
-        \/.fromTryCatchNonFatal(Duration(b)
-          ).fold(_ => Option.empty,Option(_))
+      case CfgDuration(b) => Some(b)
       case _ => None
     }
   }
