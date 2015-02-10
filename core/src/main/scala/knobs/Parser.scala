@@ -142,7 +142,7 @@ object ConfigParser {
     digit.some.map(_.foldLeft(BigInt(0))(addDigit))
 
   lazy val duration: Parser[CfgValue] =
-    scientific.flatMap(d => ident.flatMap { x =>
+    token(scientific).flatMap(d => ident.flatMap { x =>
       (for {
         a <- \/.fromTryCatchNonFatal(TimeUnit.valueOf(x))
         b <- \/.fromTryCatchNonFatal(Duration.create(d.toDouble, a))
