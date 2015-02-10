@@ -141,13 +141,13 @@ object ConfigParser {
   lazy val decimal: Parser[BigInt] =
     digit.some.map(_.foldLeft(BigInt(0))(addDigit))
 
-  lazy val duration: Parser[CfgValue] = for {
+  lazy val duration: Parser[CfgValue] = (for {
     d <- (scientific << whitespace.skipOptional)
-    x <- takeWhile(_.isLetter).map(_.mkString)
+    x <- takeWhile(_.isLetter).map(_.mkString).scope("time unit")
     r <- \/.fromTryCatchNonFatal(Duration.create(1, x)).fold(
       e => fail(e.getMessage),
       o => unit(CfgDuration(o * d.toDouble)))
-  } yield r
+  } yield r).scope("duration")
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single
