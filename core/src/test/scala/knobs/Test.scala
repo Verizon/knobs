@@ -3,6 +3,7 @@ package knobs
 import org.scalacheck._
 import scalaz.concurrent.Task
 import Prop._
+import scala.concurrent.duration._
 
 object Test extends Properties("Knobs") {
   def withLoad[A](files: List[KnobsResource])(
@@ -21,6 +22,7 @@ object Test extends Properties("Knobs") {
       ae <- cfg.lookup[Int]("ae")
       af <- cfg.lookup[(Int, Int)]("af")
       db <- cfg.lookup[Boolean]("ag.q-e.i_u9.a")
+      du <- cfg.lookup[Duration]("dur")
   } yield (aa == Some(1)) :| "int property" &&
           (ab == Some("foo")) :| "string property" &&
           (acx == Some(1)) :| "nested int" &&
@@ -28,7 +30,9 @@ object Test extends Properties("Knobs") {
           (ad == Some(false)) :| "simple bool" &&
           (ae == Some(1)) :| "simple int 2" &&
           (af == Some((2, 3))) :| "list property" &&
-          (db == Some(false)) :| "deep bool" }
+          (db == Some(false)) :| "deep bool" &&
+          (du == Some(5.seconds)) :| "duration property"
+  }
 
   lazy val interpTest: Task[Prop] =
     withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {

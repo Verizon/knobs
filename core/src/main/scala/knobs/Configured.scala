@@ -4,7 +4,8 @@ import scalaz.syntax.traverse._
 import scalaz.syntax.applicative._
 import scalaz.std.list._
 import scalaz.std.option._
-import scalaz.Monad
+import scalaz.{Monad,\/}
+import concurrent.duration.Duration
 
 /**
  * The class of types that can be automatically and safely
@@ -28,6 +29,13 @@ object Configured {
     }
     def bind[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
       def apply(v: CfgValue) = ca(v).flatMap(f(_)(v))
+    }
+  }
+
+  implicit val configuredDuration: Configured[Duration] = new Configured[Duration]{
+    def apply(a: CfgValue) = a match {
+      case CfgDuration(b) => Some(b)
+      case _ => None
     }
   }
 

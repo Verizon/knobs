@@ -21,4 +21,9 @@ case class CfgList(value: List[CfgValue]) extends CfgValue {
   }
 }
 
+import scala.concurrent.duration.Duration
+
+case class CfgDuration(value: Duration) extends CfgValue {
+  val pretty = value.toString
+}
 
