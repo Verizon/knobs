@@ -57,6 +57,7 @@ The configuration file format supports the following data types:
   * Signed integers, represented in base 10.
   * Double precision floating point numbers in scientific notation, e.g. `0.0012` or `1.2e-3`.
   * Unicode strings, represented as text (possibly containing escape sequences) surrounded by double quotes.
+  * Durations, represented as a double precision floating point number or integer followed by a time unit specification, e.g. `3 minutes` or `1h`.
   * Heterogeneous lists of values, represented as an opening square bracket `[`, followed by a series of comma-separated values, ending with a closing square bracket `]`.
 
 The following escape sequences are recognized in a text string:
@@ -68,6 +69,16 @@ The following escape sequences are recognized in a text string:
   * `\t` tab
   * `\"` double quote
   * `\\` backslash
+
+A time unit specification for a Duration can be any of the following:
+
+  * Days: `d`, `day`, or `days`
+  * Hours: `h`, `hour`, or `hours`
+  * Minutes: `min`, `mins`, `minute`, or `minutes`
+  * Seconds: `s`, `sec`, `secs`, `second`, or `seconds`
+  * Milliseconds: `ms`, `milli`, `millis`, `millisecond`, or `milliseconds`
+  * Microseconds: `μs`, `micro`, `micros`, `microsecond`, or `microseconds`
+  * Nanoseconds: `ns`, `nano`, `nanos`, `nanosecond` or `nanoseconds`
 
 ### String interpolation ###
 
