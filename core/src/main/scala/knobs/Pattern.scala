@@ -28,7 +28,8 @@ object Pattern {
    * Turn a string into a pattern. A string ending in `".*"` is a `Prefix` pattern.
    * Any other string is assumed to be `Exact`.
    */
-  def apply(p: String) = {
-    if (p.endsWith(".*")) Prefix(p.substring(0, p.length - 2))
+  def apply(pattern: String): Pattern = pattern match {
+    case p if p.endsWith(".*") => Prefix(p.substring(0, p.length - 2))
+    case _ => Exact(pattern)
   }
 }
