@@ -70,7 +70,7 @@ object ZooKeeper {
       path = config.require[String]("zookeeper.path-to-config")
       c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
       _ <- Task(c.start)
-    } yield (box(ZNode(c, path)), c)
+    } yield (Watched(ZNode(c, path)), c)
   }
 
   /**
