@@ -60,12 +60,17 @@ object ZooKeeper {
     } yield (ds, mergeN(reloads))
   }
 
-  private def doZK: Task[(ResourceBox, CuratorFramework)] = {
+  private def doZK(customConfig: Option[List[KnobsResource]]): Task[(ResourceBox, CuratorFramework)] = {
+
     val retryPolicy = new ExponentialBackoffRetry(1000, 3)
+
+    val cfg: List[KnobsResource] = customConfig getOrElse {
+      List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
+        ClassPathResource("oncue/zookeeper.cfg")))
+    }
+
     for {
-      config <- knobs.loadImmutable(
-         List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
-                       ClassPathResource("oncue/zookeeper.cfg"))))
+      config <- knobs.loadImmutable(cfg)
       loc  = config.require[String]("zookeeper.connection-string")
       path = config.require[String]("zookeeper.path-to-config")
       c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
@@ -97,8 +102,27 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def withDefault(k: ResourceBox => Task[Unit]): Task[Unit] = for {
-    p <- doZK
+  def withDefault(k: ResourceBox => Task[Unit]): Task[Unit] = safe(scala.None, k)
+
+  /**
+   * Task-based API. Works just like `withDefault` except it loads configuration from
+   * specified resource.
+   *
+   * Example usage:
+   *
+   * ```
+   * import knobs._
+   *
+   * ZooKeeper.fromResource(List(Required(ClassPathResource("speech-service.conf")))) { r => for {
+   *   cfg <- load(Required(r))
+   *   // Application code here
+   * } yield () }.run
+   * ```
+   */
+  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => Task[Unit]): Task[Unit] = safe(scala.None, k)
+
+  protected def safe(customConfig: Option[List[KnobsResource]] = scala.None, k: ResourceBox => Task[Unit]): Task[Unit] = for {
+    p <- doZK(scala.None)
     (box, c) = p
     _ <- k(box)
     _ <- Task(c.close)
@@ -119,8 +143,27 @@ object ZooKeeper {
    * close.run
    * ```
    */
-  def unsafeDefault: (ResourceBox, Task[Unit]) = {
-    val (box, c) = doZK.run
+  def unsafeDefault: (ResourceBox, Task[Unit]) = unsafe(scala.None)
+
+  /**
+   * Unsafe API. Works just like `unsafeDefault` except it loads configuration from
+   * specified specified
+   *
+   * Example usage:
+   *
+   * ```
+   * import knobs._
+   *
+   * val (r, close) = ZooKeeper.unsafeFromResource(List(Required(ClassPathResource("my-service.conf"))))
+   * // Application code here
+   * close.run
+   * ```
+   */
+  def unsafeFromResource(customConfig: List[KnobsResource]): (ResourceBox, Task[Unit]) = unsafe(Some(customConfig))
+
+  protected def unsafe(customConfig: Option[List[KnobsResource]] = scala.None): (ResourceBox, Task[Unit]) = {
+    val (box, c) = doZK(customConfig).run
     (box, Task(c.close))
   }
+
 }
