@@ -119,10 +119,10 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => Task[Unit]): Task[Unit] = safe(scala.None, k)
+  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => Task[Unit]): Task[Unit] = safe(Some(customConfig), k)
 
   protected def safe(customConfig: Option[List[KnobsResource]] = scala.None, k: ResourceBox => Task[Unit]): Task[Unit] = for {
-    p <- doZK(scala.None)
+    p <- doZK(customConfig)
     (box, c) = p
     _ <- k(box)
     _ <- Task(c.close)
