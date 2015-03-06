@@ -12,7 +12,6 @@ import scalaz.\/
 import \/._
 import scalaz.stream.merge.mergeN
 import java.io.File
-import Resource._
 
 /**
  * A ZNode contains a `path` to a node in the ZooKeeper tree
@@ -22,6 +21,10 @@ import Resource._
 case class ZNode(client: CuratorFramework, path: Path)
 
 object ZooKeeper {
+
+  private val defaultCfg = List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
+    ClassPathResource("oncue/zookeeper.cfg")))
+
   /**
    * A process that produces an event when the given path's data changes.
    * This process only contains a single event.
@@ -60,19 +63,14 @@ object ZooKeeper {
     } yield (ds, mergeN(reloads))
   }
 
-  private def doZK(customConfig: Option[List[KnobsResource]]): Task[(ResourceBox, CuratorFramework)] = {
+  private def doZK(config: List[KnobsResource]): Task[(ResourceBox, CuratorFramework)] = {
 
     val retryPolicy = new ExponentialBackoffRetry(1000, 3)
 
-    val cfg: List[KnobsResource] = customConfig getOrElse {
-      List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
-        ClassPathResource("oncue/zookeeper.cfg")))
-    }
-
     for {
-      config <- knobs.loadImmutable(cfg)
-      loc  = config.require[String]("zookeeper.connection-string")
-      path = config.require[String]("zookeeper.path-to-config")
+      cfg <- knobs.loadImmutable(config)
+      loc  = cfg.require[String]("zookeeper.connection-string")
+      path = cfg.require[String]("zookeeper.path-to-config")
       c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
       _ <- Task(c.start)
     } yield (Watched(ZNode(c, path)), c)
@@ -102,7 +100,7 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def withDefault(k: ResourceBox => Task[Unit]): Task[Unit] = safe(scala.None, k)
+  def withDefault(k: ResourceBox => Task[Unit]): Task[Unit] = safe(k)
 
   /**
    * Task-based API. Works just like `withDefault` except it loads configuration from
@@ -119,10 +117,10 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => Task[Unit]): Task[Unit] = safe(Some(customConfig), k)
+  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => Task[Unit]): Task[Unit] = safe(k, customConfig)
 
-  protected def safe(customConfig: Option[List[KnobsResource]] = scala.None, k: ResourceBox => Task[Unit]): Task[Unit] = for {
-    p <- doZK(customConfig)
+  protected def safe(k: ResourceBox => Task[Unit], config: List[KnobsResource] = defaultCfg): Task[Unit] = for {
+    p <- doZK(config)
     (box, c) = p
     _ <- k(box)
     _ <- Task(c.close)
@@ -143,11 +141,11 @@ object ZooKeeper {
    * close.run
    * ```
    */
-  def unsafeDefault: (ResourceBox, Task[Unit]) = unsafe(scala.None)
+  def unsafeDefault: (ResourceBox, Task[Unit]) = unsafe()
 
   /**
    * Unsafe API. Works just like `unsafeDefault` except it loads configuration from
-   * specified specified
+   * specified resource
    *
    * Example usage:
    *
@@ -159,10 +157,10 @@ object ZooKeeper {
    * close.run
    * ```
    */
-  def unsafeFromResource(customConfig: List[KnobsResource]): (ResourceBox, Task[Unit]) = unsafe(Some(customConfig))
+  def unsafeFromResource(customConfig: List[KnobsResource]): (ResourceBox, Task[Unit]) = unsafe(customConfig)
 
-  protected def unsafe(customConfig: Option[List[KnobsResource]] = scala.None): (ResourceBox, Task[Unit]) = {
-    val (box, c) = doZK(customConfig).run
+  protected def unsafe(config: List[KnobsResource] = defaultCfg): (ResourceBox, Task[Unit]) = {
+    val (box, c) = doZK(config).run
     (box, Task(c.close))
   }
 
