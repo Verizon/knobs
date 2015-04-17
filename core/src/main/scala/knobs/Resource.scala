@@ -2,13 +2,19 @@ package knobs
 
 import java.net.URI
 import java.io.File
+import java.nio.file.{ FileSystems, Path => P, WatchEvent }
+import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
+import java.util.concurrent.{ Executors, ThreadFactory }
+import scala.collection.JavaConverters._
 import scalaz._
 import scalaz.syntax.show._
 import scalaz.concurrent.Task
 import scalaz.stream._
+import scalaz.stream.merge.mergeN
 
 /** Resources from which configuration files can be loaded */
 trait Resource[R] extends Show[R] {
+
   /**
    * Returns a resource that has the given `child` path resolved against `r`.
    * If the given path is absolute (not relative), a new resource to that path should be returned.
@@ -82,6 +88,15 @@ object SysPropsResource {
 
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
+  val watchService = FileSystems.getDefault().newWatchService()
+  val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
+    def newThread(r: Runnable) = {
+      val t = Executors.defaultThreadFactory.newThread(r)
+      t.setDaemon(true)
+      t.setName("watch-service-pool")
+      t
+    }
+  })
 
   /** Construct a new boxed resource from a valid `Resource` */
   def apply[B](r: B)(implicit B: Resource[B]): ResourceBox = box(r)
@@ -130,12 +145,22 @@ object Resource {
     } yield r
   }
 
-  implicit def fileResource: Resource[File] = new Resource[File] {
+  def watchEvent(path: P): Process[Task, WatchEvent[_]] = {
+    path.register(watchService, ENTRY_MODIFY)
+    Process.eval(Task(watchService.take.pollEvents.asScala)(watchPool)).flatMap(Process.emitAll).repeat
+  }
+
+  implicit def fileResource: Watchable[File] = new Watchable[File] {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
     def load(path: Worth[File]) =
       loadFile(path, Task(scala.io.Source.fromFile(path.worth).mkString))
     override def shows(r: File) = r.toString
+    def watch(path: Worth[File]) = for {
+      ds <- load(path)
+      rs <- recursiveImports(path.worth, ds)
+      reloads <- Task { Process.emitAll(path.worth +: rs).map { (f: File) => watchEvent(f.toPath).map(_ => ()) } }
+    } yield (ds, mergeN(reloads))
   }
 
   implicit def uriResource: Resource[URI] = new Resource[URI] {
