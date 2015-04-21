@@ -40,6 +40,7 @@ object FileWatcherTests extends Properties("FileWatch") {
           ref.write(t.pretty).flatMap(_ => Task(latch.countDown))
         case _ => Task(latch.countDown)
       })
+      _   <- Task(Thread.sleep(1000))
       _   <- Task(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
       _   <- Task(latch.await)
       r   <- ref.read
