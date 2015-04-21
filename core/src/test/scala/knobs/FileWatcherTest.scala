@@ -26,15 +26,15 @@ import scalaz.concurrent.Task
 import Resource._
 
 object FileWatcherTests extends Properties("FileWatch") {
-  val mutantUri = Thread.currentThread.getContextClassLoader.getResource("mutant.cfg").toURI
-  val mutantPath = Paths.get(mutantUri)
 
   property("file watch") = {
+    val mutantUri = Thread.currentThread.getContextClassLoader.getResource("mutant.cfg").toURI
+    val mutantPath = Paths.get(mutantUri)
     val latch = new CountDownLatch(1)
     val prg = for {
       ref <- IORef("")
       _   <- Task(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
-      cfg <- load(List(Required(ClassPathResource("mutant.cfg"))))
+      cfg <- load(List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(t@CfgText(s))) =>
           ref.write(t.pretty).flatMap(_ => Task(latch.countDown))
