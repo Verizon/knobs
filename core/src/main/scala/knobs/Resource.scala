@@ -86,7 +86,7 @@ object ResourceBox {
 
 object FileResource {
   /** Creates a new resource that loads a configuration from a file. */
-  def apply(f: File): ResourceBox = Resource.box(f)
+  def apply(f: File): ResourceBox = Watched(f)
 }
 
 object ClassPathResource {
@@ -162,14 +162,24 @@ object Resource {
   }
 
   def watchEvent(path: P): Process[Task, WatchEvent[_]] = {
-    path.register(watchService, ENTRY_MODIFY)
-    Process.eval(Task(watchService.take.pollEvents.asScala)(watchPool)).flatMap(Process.emitAll).repeat
+    val dir = path.getParent
+    val file = path.getFileName
+
+    def watcher = {
+      val key = watchService.take
+      for {
+        ev   <- key.pollEvents.asScala if ev.context.asInstanceOf[P] == file
+      } yield ev
+    }
+
+    dir.register(watchService, ENTRY_MODIFY)
+    Process.eval(Task(watcher)(watchPool)).flatMap(Process.emitAll).repeat
   }
 
   implicit def fileResource: Watchable[File] = new Watchable[File] {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
-    def load(path: Worth[File]) =
+    def load(path: Worth[File]) = 
       loadFile(path, Task(scala.io.Source.fromFile(path.worth).mkString))
     override def shows(r: File) = r.toString
     def watch(path: Worth[File]) = for {
