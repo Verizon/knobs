@@ -74,6 +74,16 @@ object Test extends Properties("Knobs") {
       ClassPathResource("foobar.cfg") or
       ClassPathResource("pathological.cfg")))) { _.lookup[Int]("aa").map(_ == Some(1)) }
 
+  // Check that there is one error per resource in the chain, plus one
+  lazy val fallbackErrorTest: Task[Prop] =
+    load(List(Required(ClassPathResource("foobar.cfg") or
+                       ClassPathResource("foobar.cfg")))).attempt.map(_.fold(
+      e =>
+        { println(e);
+        e.getMessage.toList.filter(_ == '\n').size == 3},
+      a => false
+    ))
+
   property("load-pathological-config") = loadTest.run
 
   property("interpolation") = interpTest.run
@@ -83,5 +93,7 @@ object Test extends Properties("Knobs") {
   property("load-system-properties") = loadPropertiesTest.run
 
   property("load-fallback-chain") = fallbackTest.run
+
+  property("fallback-chain-errors") = fallbackErrorTest.run
 
 }
