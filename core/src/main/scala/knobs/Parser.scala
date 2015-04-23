@@ -30,15 +30,17 @@ object ConfigParser {
   import P._
 
   implicit class ParserOps[A](p: Parser[A]) {
-    def parse[A](s: String) = runParser(p, s) match {
+    def parse(s: String) = runParser(p, s) match {
       case Left(e) => \/.left(e.pretty.toString)
       case Right((_, r)) => \/.right(r)
     }
+    def |:(s: String) = p scope s
   }
 
   /** Top-level parser of configuration files */
-  lazy val topLevel: Parser[List[Directive]] =
-    (directives << skipLWS << realEOF) scope "configuration"
+  lazy val topLevel: Parser[List[Directive]] = "configuration" |: {
+    directives << skipLWS << realEOF
+  }
 
   /** Parser of configuration files that don't support import directives */
   lazy val sansImport: Parser[List[Directive]] = {
@@ -53,20 +55,22 @@ object ConfigParser {
     (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
       "directive"
 
-  lazy val importDirective =
-    word("import") >> skipLWS >> stringLiteral.map(Import(_)) scope "import directive"
+  lazy val importDirective = "import directive" |: {
+    word("import") >> skipLWS >> stringLiteral.map(Import(_))
+  }
 
-  lazy val bindDirective = {
+  lazy val bindDirective = "bind directive" |: {
     attempt(ident.sepBy1('.') << skipLWS << '=' << skipLWS).map2(value) { (x, v) =>
       val xs = x.reverse
       xs.tail.foldLeft(Bind(xs.head, v):Directive)((d, g) => Group(g, List(d)))
     }
-  } scope "bind directive"
+  }
 
-  lazy val groupDirective = { for {
-    g <- attempt(ident << skipLWS << '{' << skipLWS)
+  lazy val groupDirective = "group directive" |: { for {
+    gs <- attempt(ident.sepBy1('.') << skipLWS << '{' << skipLWS)
     ds <- directives << skipLWS << '}'
-  } yield Group(g, ds) } scope "group directive"
+    xs = gs.reverse
+  } yield xs.tail.foldLeft(Group(xs.head, ds):Directive)((d, g) => Group(g, List(d))) }
 
   // Skip lines, comments, or horizontal white space
   lazy val skipLWS: Parser[Unit] = (newline | comment | whitespace).skipMany
