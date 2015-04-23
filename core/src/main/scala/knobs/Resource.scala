@@ -179,7 +179,7 @@ object Resource {
   implicit def fileResource: Watchable[File] = new Watchable[File] {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
-    def load(path: Worth[File]) = 
+    def load(path: Worth[File]) =
       loadFile(path, Task(scala.io.Source.fromFile(path.worth).mkString))
     override def shows(r: File) = r.toString
     def watch(path: Worth[File]) = for {
@@ -205,7 +205,7 @@ object Resource {
     def load(path: Worth[String @@ ClassPath]) = {
       val r = path.worth
       loadFile(path, Task(getClass.getClassLoader.getResourceAsStream(Tag.unwrap(r))) flatMap { x =>
-        if (x == null) Task.fail(new java.io.FileNotFoundException(r + " (on classpath)"))
+        if (x == null) Task.fail(new java.io.FileNotFoundException(r + " not found on classpath"))
         else Task(scala.io.Source.fromInputStream(x).mkString)
       })
     }
@@ -247,14 +247,24 @@ object Resource {
         box(b.R.resolve(b.resource, child))(b.R)
       ))
     }
+    import \/._
     def load(path: Worth[FallbackChain]) = {
-      val err = Task.fail {
-        ConfigError(path.worth, s"Failed to load.")
-      }
+      def loadReq(r: ResourceBox, f: Throwable => Task[String \/ List[Directive]]) =
+        r.R.load(Required(r.resource)).attempt.flatMap(_.fold(f, a => Task.now(right(a))))
+      def formatError(r: ResourceBox, e: Throwable) =
+        s"${r.R.show(r.resource)}: ${e.getMessage}"
+      def orAccum(r: ResourceBox, t: Task[String \/ List[Directive]]) =
+        loadReq(r, e1 => t.map(_.leftMap(e2 => s"\n${formatError(r, e1)}$e2")))
       val OneAnd(r, rs) = path.worth
-      (r +: rs).foldRight(if (path.isRequired) err else Task.now(List[Directive]()))((x, y) =>
-        x.R.load(Required(x.resource)) or y
-      )
+      (r +: rs).foldRight(
+        if (path.isRequired)
+          Task.now(left("\nFallback chain failed to load."))
+        else
+          Task.now(right(List[Directive]()))
+      )(orAccum).flatMap(_.fold(
+        e => Task.fail(ConfigError(path.worth, e)),
+        Task.now(_)
+      ))
     }
     override def shows(r: FallbackChain) = {
       val OneAnd(a, as) = r

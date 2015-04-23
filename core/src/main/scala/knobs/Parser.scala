@@ -30,15 +30,17 @@ object ConfigParser {
   import P._
 
   implicit class ParserOps[A](p: Parser[A]) {
-    def parse[A](s: String) = runParser(p, s) match {
+    def parse(s: String) = runParser(p, s) match {
       case Left(e) => \/.left(e.pretty.toString)
       case Right((_, r)) => \/.right(r)
     }
+    def |:(s: String) = p scope s
   }
 
   /** Top-level parser of configuration files */
-  lazy val topLevel: Parser[List[Directive]] =
-    (directives << skipLWS << realEOF) scope "configuration"
+  lazy val topLevel: Parser[List[Directive]] = "configuration" |: {
+    directives << skipLWS << realEOF
+  }
 
   /** Parser of configuration files that don't support import directives */
   lazy val sansImport: Parser[List[Directive]] = {
@@ -53,20 +55,22 @@ object ConfigParser {
     (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
       "directive"
 
-  lazy val importDirective =
-    word("import") >> skipLWS >> stringLiteral.map(Import(_)) scope "import directive"
+  lazy val importDirective = "import directive" |: {
+    word("import") >> skipLWS >> stringLiteral.map(Import(_))
+  }
 
-  lazy val bindDirective = {
+  lazy val bindDirective = "bind directive" |: {
     attempt(ident.sepBy1('.') << skipLWS << '=' << skipLWS).map2(value) { (x, v) =>
       val xs = x.reverse
       xs.tail.foldLeft(Bind(xs.head, v):Directive)((d, g) => Group(g, List(d)))
     }
-  } scope "bind directive"
+  }
 
-  lazy val groupDirective = { for {
-    g <- attempt(ident << skipLWS << '{' << skipLWS)
+  lazy val groupDirective = "group directive" |: { for {
+    gs <- attempt(ident.sepBy1('.') << skipLWS << '{' << skipLWS)
     ds <- directives << skipLWS << '}'
-  } yield Group(g, ds) } scope "group directive"
+    xs = gs.reverse
+  } yield xs.tail.foldLeft(Group(xs.head, ds):Directive)((d, g) => Group(g, List(d))) }
 
   // Skip lines, comments, or horizontal white space
   lazy val skipLWS: Parser[Unit] = (newline | comment | whitespace).skipMany
@@ -75,16 +79,17 @@ object ConfigParser {
   lazy val skipHWS: Parser[Unit] = (comment | whitespace).skipMany
 
   lazy val newline: Parser[Unit] =
-    satisfy(c => c == '\r' || c == '\n').skip scope "newline"
+    "newline" |: satisfy(c => c == '\r' || c == '\n').skip
 
   lazy val whitespace: Parser[Unit] =
-    satisfy(c => c.isWhitespace && c != '\r' && c != '\n').skip scope "whitespace"
+    "whitespace" |: satisfy(c => c.isWhitespace && c != '\r' && c != '\n').skip
 
-  lazy val comment: Parser[Unit] =
-    { ch('#').attempt >>
-      satisfy(c => c != '\r' && c != '\n').skipMany >>
-      (newline | realEOF) >>
-      unit(()) } scope "comment"
+  lazy val comment: Parser[Unit] = "comment" |: {
+    ch('#').attempt >>
+    satisfy(c => c != '\r' && c != '\n').skipMany >>
+    (newline | realEOF) >>
+    unit(())
+  }
 
   def takeWhile(p: Char => Boolean): Parser[List[Char]] = satisfy(p).many
 
@@ -96,7 +101,7 @@ object ConfigParser {
     _ <- failWhen[Parser](n == "import", s"reserved word ($n) used as an identifier")
   } yield n.mkString
 
-  lazy val value: Parser[CfgValue] = choice(
+  lazy val value: Parser[CfgValue] = "value" |: choice(
     word("on") >> unit(CfgBool(true)),
     word("off") >> unit(CfgBool(false)),
     word("true") >> unit(CfgBool(true)),
@@ -105,7 +110,7 @@ object ConfigParser {
     duration.attempt,
     scientific.map(d => CfgNumber(d.toDouble)),
     list.map(CfgList(_))
-  ) scope "value"
+  )
 
   def isChar(b: Boolean, c: Char) =
     if (b) Some(false) else if (c == '"') None else Some(c == '\\')
@@ -124,21 +129,21 @@ object ConfigParser {
 
   private val charEscMagic: Map[Char, Char] = "bfnrt\\\"'".zip("\b\f\n\r\t\\\"'").toMap
 
-  private lazy val escapeCode =
-    choice(charEscMagic.toSeq.map { case (c,d) => ch(c) as d } :_*) scope "escape code"
+  private lazy val escapeCode = "escape code" |:
+    choice(charEscMagic.toSeq.map { case (c,d) => ch(c) as d } :_*)
 
-  lazy val string: Parser[String] = stringChar.many.between('"','"').map(
-    _.sequence[Option,Char].getOrElse(List()).mkString) scope "string literal"
+  lazy val string: Parser[String] = "string literal" |:
+    stringChar.many.between('"','"').map(_.sequence[Option,Char].getOrElse(List()).mkString)
 
-  lazy val list: Parser[List[CfgValue]] =
-    (ch('[') >> (skipLWS >> value << skipLWS).sepBy(ch(',') << skipLWS) << ']') scope "list"
+  lazy val list: Parser[List[CfgValue]] = "list" |:
+    (ch('[') >> (skipLWS >> value << skipLWS).sepBy(ch(',') << skipLWS) << ']')
 
   def isCont(c: Char) = Character.isLetterOrDigit(c) || c == '_' || c == '-'
 
   lazy val signedInt: Parser[BigInt] =
     (ch('-') >> decimal).map(- _) | (ch('+') >> decimal) | decimal
 
-  lazy val scientific: Parser[BigDecimal] = (for {
+  lazy val scientific: Parser[BigDecimal] = "numeric literal" |: { for {
     positive <- satisfy(c => c == '-' || c == '+').map(_ == '+') | unit(true)
     n <- decimal
     s <- (satisfy(_ == '.') >> takeWhile(_.isDigit).map(f =>
@@ -148,22 +153,22 @@ object ConfigParser {
          signedInt.flatMap(x =>
            if (x > Int.MaxValue) fail[Parser](s"Exponent too large: $x")
            else unit(s * BigDecimal(10).pow(x.toInt))) | unit(sCoeff)
-  } yield r) scope "numeric literal"
+  } yield r }
 
   private def addDigit(a: BigInt, c: Char) = a * 10 + (c - 48)
 
-  lazy val digit = satisfy(_.isDigit) scope "digit"
+  lazy val digit = "digit" |: satisfy(_.isDigit)
 
   lazy val decimal: Parser[BigInt] =
     digit.some.map(_.foldLeft(BigInt(0))(addDigit))
 
-  lazy val duration: Parser[CfgValue] = (for {
+  lazy val duration: Parser[CfgValue] = "duration" |: { for {
     d <- (scientific << whitespace.skipOptional)
-    x <- takeWhile(_.isLetter).map(_.mkString).scope("time unit")
+    x <- "time unit" |: takeWhile(_.isLetter).map(_.mkString)
     r <- \/.fromTryCatchNonFatal(Duration.create(1, x)).fold(
       e => fail(e.getMessage),
       o => unit(CfgDuration(o * d.toDouble)))
-  } yield r).scope("duration")
+  } yield r }
 
   /**
    * Parse a string interpolation spec. The sequence `$$` is treated as a single
