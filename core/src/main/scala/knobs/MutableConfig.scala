@@ -26,8 +26,8 @@ import scalaz.std.list._
 case class MutableConfig(root: String, base: BaseConfig) {
 
   /**
-   * Gives a `MutableConfig` corresponding to just a single group of the original `MutableConfig`.
-   * The subconfig can be used just like the original.
+   * Gives a `MutableConfig` corresponding to just a single group of the
+   * original `MutableConfig`. The subconfig can be used just like the original.
    */
   def subconfig(g: Name): MutableConfig =
     MutableConfig(root + g + (if (g.isEmpty) "" else "."), base)
@@ -67,7 +67,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    */
   def addEnv(props: Env): Task[Unit] = for {
     p <- base.cfgMap.atomicModify { m =>
-      val mp = m ++ props
+      val mp = m ++ props.mapKeys(root + _)
       (mp, (m, mp))
     }
     (m, mp) = p
@@ -124,26 +124,33 @@ case class MutableConfig(root: String, base: BaseConfig) {
   /**
    * Perform a simple dump of a `MutableConfig` to the console.
    */
-  def display: Task[Unit] =
-    base.cfgMap.read.flatMap(_.toList.traverse_ {
-      case (k, v) => Task(if (k startsWith root) println(s"$k = ${v.pretty}"))
-    })
+  @deprecated("Use `pretty` instead", "2.2")
+  def display: Task[Unit] = pretty.flatMap(x => Task.now(println(x)))
 
   /**
-   * Fetch the `Map` that maps names to values. Turns the config into a pure value
-   * disconnected from the file resources it came from.
+   * Perform a simple dump of a `MutableConfig` to a `String`.
    */
-  def getEnv: Task[Env] =
-    base.cfgMap.read
+  def pretty: Task[String] =
+    base.cfgMap.read.map(_.flatMap {
+      case (k, v) if (k startsWith root) => Some(s"$k = ${v.pretty}")
+      case _ => None
+    }.mkString("\n"))
 
   /**
-   * Get an immutable `Config` from of the current state of this `MutableConfig`.
+   * Fetch the `Map` that maps names to values. Turns the config into a pure
+   * value disconnected from the file resources it came from.
+   */
+  def getEnv: Task[Env] = immutable.map(_.env)
+
+  /**
+   * Get an immutable `Config` from of the current state of this
+   * `MutableConfig`.
    */
   def immutable: Task[Config] = base at root
 
   /**
-   * Subscribe to notifications. The given handler will be invoked when any change
-   * occurs to a configuration property that matches the pattern.
+   * Subscribe to notifications. The given handler will be invoked when any
+   * change occurs to a configuration property that matches the pattern.
    */
   def subscribe(p: Pattern, h: ChangeHandler): Task[Unit] =
     base.subs.modify(_.insertWith(p local root, List(h))(_ ++ _))
