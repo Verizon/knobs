@@ -12,7 +12,6 @@ scalacOptions in Global := Seq(
   "-language:postfixOps",
   "-language:higherKinds",
   "-language:implicitConversions",
-  "-target:jvm-1.7",
   "-unchecked",
   "-Xcheckinit",
   "-Xfuture",
