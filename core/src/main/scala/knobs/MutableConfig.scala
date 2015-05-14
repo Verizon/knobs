@@ -162,9 +162,9 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * the given pattern
    */
   def changes(p: Pattern): Process[Task, (Name, Option[CfgValue])] = {
-    import scalaz.stream.async.signal
-    val sig = signal[(Name, Option[CfgValue])]
-    Process.eval(subscribe(p, (k, v) => sig.set((k, v)))).flatMap(_ => sig.discrete)
+    import scalaz.stream.async.signalOf
+    val sig = signalOf[(Name, Option[CfgValue])](("",None)) // TP: Not sure about the soundness of this default?
+    Process.eval(subscribe(p, (k, v) => sig.set((k, v)))).flatMap(_ => sig.discrete).drop(1) // droping the previously initilized tuple of the signal.
   }
 }
 
