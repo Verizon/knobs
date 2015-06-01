@@ -1,4 +1,6 @@
 
+releaseSettings
+
 common.testSettings
 
 libraryDependencies ++= Seq(

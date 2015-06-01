@@ -1,5 +1,9 @@
 
+releaseSettings
+
 common.testSettings
+
+common.publishSettings
 
 resolvers ++= Seq(
   "scalaz.bintray" at "http://dl.bintray.com/scalaz/releases",
