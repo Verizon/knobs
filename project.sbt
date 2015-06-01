@@ -19,6 +19,8 @@ scalacOptions in Global := Seq(
   "-Ywarn-dead-code",
   "-Ywarn-value-discard")
 
+licenses in Global += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html"))
+
 lazy val knobs = project.in(file(".")).aggregate(core, docs, typesafe, zookeeper)
 
 lazy val core = project
