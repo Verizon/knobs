@@ -1,9 +1,7 @@
 
-import oncue.build._
+organization in Global := "oncue.knobs"
 
-organization in Global := "oncue.svc.knobs"
-
-scalaVersion in Global := "2.10.4"
+scalaVersion in Global := "2.10.5"
 
 scalacOptions in Global := Seq(
   "-deprecation",
@@ -21,9 +19,11 @@ scalacOptions in Global := Seq(
   "-Ywarn-dead-code",
   "-Ywarn-value-discard")
 
-lazy val knobs = project.in(file(".")).aggregate(core, typesafe, zookeeper)
+lazy val knobs = project.in(file(".")).aggregate(core, docs, typesafe, zookeeper)
 
 lazy val core = project
+
+lazy val docs = project.dependsOn(core)
 
 lazy val typesafe = project.dependsOn(core)
 
@@ -34,5 +34,3 @@ publishArtifact in (Compile, packageBin) := false
 publish := ()
 
 publishLocal := ()
-
-OnCue.baseSettings

@@ -29,7 +29,7 @@ In the general case, configurations are loaded using the `load` method in the `k
   * `ClassPathResource` - loads a file from the classpath.
   * `SysPropsResource` - loads system properties matching a specific pattern.
   * `Zookeeper`* - loads the specified zookeeper znode tree (including children from the specified location).
-  
+
 `*` requires the "zookeeper knobs" dependency in addition to knobs core.
 
 Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it a `Required` configuration `Resource` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
@@ -127,7 +127,7 @@ Typically speaking this configuration will be overridden at deployment time and 
 
 ### Functional Connection Management
 
-For the functional implementation, you essentially have to build your application within the context of the `Task[A]` that contains the connection to Zookeeper (thus allowing real-time updates to the configuration). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will basically make this impossible and you'll need to use the imperative alternative. 
+For the functional implementation, you essentially have to build your application within the context of the `Task[A]` that contains the connection to Zookeeper (thus allowing real-time updates to the configuration). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will basically make this impossible and you'll need to use the imperative alternative.
 
 ```
 import knobs.{Zookeeper,Required}
@@ -157,14 +157,14 @@ val (r, close) = ZooKeeper.unsafeDefault
 // Application code here
 val cfg = knobs.load(Required(r))
 
-// then at some time later (whenever, essentially) close 
-// the connection to zookeeper when you wish to shut 
+// then at some time later (whenever, essentially) close
+// the connection to zookeeper when you wish to shut
 // down application.
 close.run
 
 ```
 
-Where possible, do try and design your applications as `Free[A]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one. 
+Where possible, do try and design your applications as `Free[A]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one.
 
 <a name="reading"></a>
 
@@ -178,7 +178,7 @@ val config: Task[Config] =
   knobs.loadImmutable(Required(FileResource(...))) or
   knobs.loadImmutable(Required(ClassPathResource(...)))
 
-// do something with 
+// do something with
 val connection: Task[Connection] =
   for {
     cfg <- config
@@ -189,14 +189,14 @@ val connection: Task[Connection] =
 
 ```
 
-There are two APIs at play here: 
+There are two APIs at play here:
 
-* `require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example. 
+* `require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example.
 
-* `lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`. 
+* `lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`.
 
 
-Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example: if this were a data base application and the connection to the database was not properly configured, the whole application is broken anyway so it might as well error out. 
+Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example: if this were a data base application and the connection to the database was not properly configured, the whole application is broken anyway so it might as well error out.
 
 In addition to these general purposes lookup APIs, `Config` has two other useful functions:
 
@@ -206,7 +206,7 @@ In addition to these general purposes lookup APIs, `Config` has two other useful
 
 <a name="aws"></a>
 
-# AWS Configuration 
+# AWS Configuration
 
 If you're running *Knobs* from within an application that is hosted on AWS, you're in luck!... *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. Consider the following example:
 
@@ -215,8 +215,8 @@ import knobs._
 
 val c1: Task[Config] =
   knobs.loadImmutable(Required(FileResource(...)))
-  
-val cfg: Task[Config] = 
+
+val cfg: Task[Config] =
   c1.flatMap(AWS.config)
 
 ```
