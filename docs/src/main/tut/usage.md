@@ -164,7 +164,7 @@ close.run
 
 ```
 
-Where possible, do try and design your applications as `Free[A]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one.
+Where possible, do try and design your applications as `Free[A]` or `Kleisli[Task,YourConfig,C]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one.
 
 <a name="reading"></a>
 
