@@ -1,6 +1,6 @@
 Knobs
 =====
 
-[![Build Status](https://jenkins.svc.oncue.com:8443/job/WebServices-knobs/badge/icon)](https://jenkins.svc.oncue.com:8443/job/WebServices-knobs/)
+[![image](https://travis-ci.org/oncue/knobs.svg)](https://travis-ci.org/oncue/knobs)
 
-Please [view the documentation](https://github.oncue.verizon.net/pages/IntelMedia/knobs/) for more information.
+Please [view the documentation](http://oncue.github.io/knobs/) for more information.
