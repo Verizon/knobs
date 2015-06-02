@@ -1,0 +1,4 @@
+name: Knobs Documentation
+markdown: redcarpet
+highlighter: pygments
+baseurl: "/knobs/"
