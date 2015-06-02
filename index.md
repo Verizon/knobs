@@ -18,7 +18,7 @@ Features include:
   * An `import` directive allows the configuration of a complex application to be split across several smaller files, or to be shared across several applications.
   * Helpful error messages when config files have errors in them.
   * An extensible configuration loader. Extensions exist for loading config values from AWS, Typesafe Config, and ZooKeeper.
-  * Automatic reloading of the configuration when the source files change. Currently the only source type to support this is ZooKeeper.
+  * Automatic reloading of the configuration when the source configuration change. Supported by both Filesystem and Zookeeper resources.
 
 <a name="syntax"></a>
 
