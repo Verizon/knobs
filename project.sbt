@@ -31,6 +31,8 @@ lazy val typesafe = project.dependsOn(core)
 
 lazy val zookeeper = project.dependsOn(core)
 
+releaseSettings
+
 publishArtifact in (Compile, packageBin) := false
 
 publish := ()
