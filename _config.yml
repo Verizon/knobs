@@ -1,7 +1,0 @@
-name: Knobs
-markdown: redcarpet
-highlighter: true
-baseurl: "/pages/IntelMedia/knobs/"
-# for local development, switch the above with the below
-# baseurl: "/"
-github_repo: intelmedia/knobs
