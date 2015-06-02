@@ -120,7 +120,8 @@ object ConfigParser {
 
   lazy val stringChar = stringLetter.map(Some(_)) | stringEscape
 
-  private lazy val stringLetter = satisfy(c => (c != '"') && (c != '\\') && (c > '\026'))
+  // 22.toChar was '\026', but one who knows the intent could improve away the magic number
+  private lazy val stringLetter = satisfy(c => (c != '"') && (c != '\\') && (c > 22.toChar))
 
   private lazy val stringEscape = ch('\\') >> {
     (satisfy(_.isWhitespace).skipSome >> ch('\\')).as(None) |

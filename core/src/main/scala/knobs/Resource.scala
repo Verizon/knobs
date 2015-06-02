@@ -232,7 +232,7 @@ object Resource {
                  })
         r <- (ds.isEmpty, path) match {
           case (true, Required(_)) =>
-            Task.fail(new ConfigError(path.worth, "Required system properties $pat not present."))
+            Task.fail(new ConfigError(path.worth, s"Required system properties $pat not present."))
           case _ => Task(ds.toList)
         }
       } yield r
