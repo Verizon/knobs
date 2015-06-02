@@ -48,7 +48,7 @@ object Config {
       ds.foldLeft(acc)((m, d) => d match {
         case Bind(name, v) => m + ((pfx + name) -> v)
         case Group(name, gds) => go(pfx + name + ".", m, gds)
-        case x => sys.error("Unexpected directive: $x")
+        case x => sys.error(s"Unexpected directive: $x")
       })
     runParser(sansImport, s) match {
       case Left(e) => left(ParseException(e.message.toString))
