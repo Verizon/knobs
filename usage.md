@@ -8,21 +8,21 @@ section: "usage"
 
 <a name="getting-started"></a>
 
-First up you need to add the dependency for the monitoring library to your `build.scala` or your `build.sbt` file:
+First you need to add the dependency for Knobs to your `build.scala` or your `build.sbt` file:
 
 ````
 libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
 ````
 
-(check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view)).
+Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
 
-Once you have the dependency added to your project and SBT `update` downloaded JAR, you're ready to start adding configuration knobs to your project!
+Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
 <a name="resources"></a>
 
 # Configuration Resources
 
-In the general case, configurations are loaded using the `load` method in the `knobs` package. Configurations are loaded from `Resource`s. A `Resource` is an abstract concept to model arbitrary locations from which a configuration source can be loaded. At the time of writing, the following `Resource` implementations were supported:
+In the general case, configurations are loaded using the `load` and `loadImmutable` methods in the `knobs` package. Configurations are loaded from one or more `Resource`s. A `Resource` is an abstract concept to model arbitrary locations from which a source of configuration bindings can be loaded. The following `Resource` implementations are currently available:
 
   * `FileResource` - loads a file from the file system.
   * `URLResource` - loads any URI supported by the class `java.net.URI`.
@@ -32,9 +32,11 @@ In the general case, configurations are loaded using the `load` method in the `k
 
 `*` requires the "zookeeper knobs" dependency in addition to knobs core.
 
-Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it a `Required` configuration `Resource` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
+Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it `Required` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
 
-Every interaction with *Knobs* will result in a `Config` enclosed in a `scalaz.concurrent.Task` monad. Until this task is executed (see the Scalaz documentation for the exact semantics) the resources are loaded and the configuration is parsed. You can get the `Config` out of it with `cfg.run`, but this is not the recommended usage pattern. The recommended way of accessing the contents of a `Task` is to use its `map` and `flatMap` methods (more on this in the specific resource usage and best practices later in this document)
+Calling the `loadImmutable` method to load your resources will result in a `Task[Config]`. This is not yet a `Config`, but a `scalaz.concurrent.Task` that can get you a `Config` when you `run` it. See the [Scalaz documentation for the exact semantics](http://docs.typelevel.org/api/scalaz/nightly/index.html#scalaz.concurrent.Task).
+
+The `Task[Config]` is a pure value which, when run, loads your resources and assembles the configuration from them. You can force this to happen and get the `Config` out of it by calling its `run` method, but this is not the recommended usage pattern. The recommended way of accessing the result of a `Task` is to use its `map` and `flatMap` methods (more on this in the specific resource usage and best practices later in this document).
 
 ## Classpath Resources
 
@@ -58,12 +60,11 @@ val cfg: Task[Config] = knobs.loadImmutable(
   	Required(ClassPathResource("subfolder/foo.cfg")))
 ```
 
-Classpath resources are always immutable. They can technically be reloaded, but this generally does not serve any use what-so-ever as the file that is being loaded exists inside the application JAR so is a fixed entity at deploy time.
-
+Classpath resources are immutable and aren't intended to be reloaded in the general case. You can technically reload them, but this has no effect unless you're using a custom ClassLoader or employing some classpath tricks. Usually the classpath resource will exist inside your application JAR at deployment time and won't change at runtime.
 
 ## File Resources
 
-`File` resources are probably the most common type of resource you might want to interact with. Here's an example:
+`File` resources are probably the most common type of resource you might want to interact with. Here's a simple example of loading an immutable configuration from a file:
 
 ```
 import java.io.File
@@ -74,11 +75,11 @@ val cfg: Task[Config] = knobs.loadImmutable(
   	Required(FileResource(new File("/path/to/foo.cfg"))))
 ```
 
-On-disk files can be reloaded ([see below](#reloading) for information about reloading)
+On-disk files can be reloaded. [See below](#reloading) for information about reloading configurations.
 
 ## System Property Resources
 
-Whilst its rare to use Java system properties to set values, there may be occasions where you want to use them (perhaps as an override of a specific key). Here's an example:
+Although you usually wouldn't want to load your entire configuration from Java system properties, there may be occasions when you want to use them to set specific configuration values (perhaps to override a few bindings). Here's an example:
 
 ```
 import knobs.{Required,SysPropsResource,Config,Prefix}
@@ -88,32 +89,33 @@ val cfg: Task[Config] = knobs.loadImmutable(
   	Required(SysPropsResource(Prefix("oncue"))))
 ```
 
-Given that system properties are just keys and value pairs, *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
+System properties are just key/value pairs, and *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
 
 * `Exact`: the exact name of the system property you want to load. Useful when you want one specific key.
-* `Prefix`: In the case where you want to load multiple system properties, you can do so using a prefix; knobs will then go an load all the system properties with that prefix name.
+* `Prefix`: In the case where you want to load multiple system properties, you can do so using a prefix; knobs will then go and load all the system properties whose names start with that string.
 
 ## Zookeeper
 
-The zookeeper support can be used in two different styles, depending on your application design you can choose the implementation that best suits your specific style or requirements. Eitherway, ensure you add the following dependency to your project:
+The Zookeeper support can be used in two different styles. Depending on your application design, you can choose the implementation that best suits your specific style and requirements. Either way, make sure to add the following dependency to your project:
 
 ```
 libraryDependencies += "oncue.knobs" %% "zookeeper" % "x.x.+"
 ```
 
-This will put the Zookeeper knobs supporting classes into your project classpath. Regardless of which type of connection management you choose (see below), the mechanism for defining the resource is the same:
+Where `x.x` is the desired Knobs version.
+
+Regardless of which type of connection management you choose (see below), the mechanism for defining the resource is the same:
 
 ```
 import knobs._
 
 // `r` is provided by the connection management options below
 knobs.load(Required(r))
-
 ```
 
 ### Configuring Zookeeper Knobs with Knobs
 
-The Zookeeper module of knobs is itself configured using knobs (the author envisions the reader giving high-fives all around after reading that); this is simply to provide a location for the Zookeeper cluster. There is a default shipped inside the knobs zookeeper JAR, so if you do nothing, the system, will use the following (default) configuration:
+The Zookeeper module of Knobs is itself configured using Knobs (high fives all around). This is simply to provide a location for the Zookeeper cluster. There is a default shipped inside the Knobs Zookeeper JAR, so if you do nothing, the system, will use the following (default) configuration:
 
 ```
 zookeeper {
@@ -123,11 +125,14 @@ zookeeper {
 
 ```
 
-Typically speaking this configuration will be overridden at deployment time and the right zookeeper cluster location will be provided.
+Typically you will want to override this at deployment time.
+
+* Bind `connection-string` to the actual location of your Zookeeper cluster.
+* Bind `path-to-config` to the ZNode path, inside of your Zookeeper, that points to your Knobs configuration file. Note that if this file `import`s other files, it must reference them using a path relative to its own path.
 
 ### Functional Connection Management
 
-For the functional implementation, you essentially have to build your application within the context of the `Task[A]` that contains the connection to Zookeeper (thus allowing real-time updates to the configuration). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will basically make this impossible and you'll need to use the imperative alternative.
+For the functional implementation, you essentially have to build your application within the context of the `scalaz.concurrent.Task` that contains the connection to Zookeeper (thus allowing you to subscribe to updates to your configuration from Zookeeper in real time). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will make this more difficult and you'll probably want to use the imperative alternative (see the next section). Otherwise, the usage pattern is the traditional monadic style:
 
 ```
 import knobs.{Zookeeper,Required}
@@ -144,41 +149,53 @@ ZooKeeper.withDefault { r => for {
 
 ### Imperative Connection Management
 
-Sadly, for most systems using any kind of framework, you'll likely have to go with the imperative implementation to knit knobs correctly into the application lifecycle.
+If you're not building your application with monadic composition, you'll sadly have to go with an imperative style to knit Knobs correctly into the application lifecycle:
 
 ```
 import knobs.{Zookeeper,Required}
 
-// somewhere at the edge of the world call this function
-// to connect to zookeeper. Connection will then stay open
-// up until the point the close task is executed.
+// somewhere at the outer layers of your application,
+// call this function to connect to zookeeper.
+// The connection will stay open until you run the `close` task.
 val (r, close) = ZooKeeper.unsafeDefault
 
-// Application code here
+// This then loads the configuration from the ZooKeeper resource:
 val cfg = knobs.load(Required(r))
 
-// then at some time later (whenever, essentially) close
-// the connection to zookeeper when you wish to shut
-// down application.
-close.run
+// Your application code goes here
 
+// Close the connection to ZooKeeper before shutting down
+// your application:
+close.run
 ```
 
-Where possible, do try and design your applications as `Free[A]` or `Kleisli[Task,YourConfig,C]` so you can actually use the functional style. The author appreciates that this is unlikely to be the common case from day one.
+Where possible, we recommend designing your applications as a [free monad](http://timperrett.com/2013/11/21/free-monads-part-1/) or use a [reader monad transformer](http://docs.typelevel.org/api/scalaz/nightly/index.html#scalaz.Kleisli) like `Kleisli[Task,Config,A]` to "inject" your configuration to where it's needed. Of course, this is not a choice available to everyone. If your hands are tied with an imperative framework, you can pass Knobs configurations in the same way that you normally do.
 
 <a name="reading"></a>
 
+## Resource combinators
+
+A few combinators are available on `Resource`s:
+
+* `r1 or r2` is a composite `Resource` which, when loaded, attempts to load `r1`, and then attempts to load `r2` if `r1` fails.
+* `r.required` is alternate syntax for `Required(r)`. It marks the resource `r` as required for the configuration.
+* `r.optional` is alternate syntax for `Optional(r)`. It marks the resource `r` as optional to the configuration.
+
 # Reading Values
 
-Once you have a `Config` instance, and you want to lookup some values from said configuration, the API is fortunately very simple. Consider the following example:
+Once loaded, configurations come in two flavors: `Config` and `MutableConfig`. These are loaded using the `loadImmutable` and `load` methods, respectively, in the `knobs` package.
+
+## Immutable Configurations
+
+Once you have a `Config` instance loaded, and you want to lookup some values from it, the API is very simple. Here's an example:
 
 ```
 // load some configuration
 val config: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(...))) or
-  knobs.loadImmutable(Required(ClassPathResource(...)))
+  knobs.loadImmutable(Required(FileResource(someFile))) or
+  knobs.loadImmutable(Required(ClassPathResource(someName)))
 
-// do something with
+// do something with it
 val connection: Task[Connection] =
   for {
     cfg <- config
@@ -189,32 +206,58 @@ val connection: Task[Connection] =
 
 ```
 
-There are two APIs at play here:
+There are two different ways of looking up a configuration value in this example:
 
-* `require`: attempts to lookup the value defined by the key and convert it into the specified `A` - a `String` in this example.
+* `require[A](k)` attempts to look up the value bound to the key `k` and convert it into the specified type `A` - a `String` in this example. It will throw an exception if the key `k` is not bound to a value or is bound to a value that cannot be converted to the type `A`.
 
-* `lookup`: the same conversion semantics as `require` with the addition that the function returns `Option[A]`. If the key is for some reason not defined, or the value could not properly be converted into the specified type, the function yields `None`.
+* `lookup[A](k)` has the same conversion semantics as `require[A](k)` with the addition that the function returns an `Option[A]`. If the key `k` is not bound to a value, or the value could not properly be converted into the specified type `A`, then `lookup` returns `None`.
 
+Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example--if this were a database application and the connection to the database was not properly configured, the whole application is broken anyway so we might as well throw an exception.
 
-Typically you will want to use `lookup` more than you use `require`, but there are of course valid use cases for `require`, such as in this example: if this were a data base application and the connection to the database was not properly configured, the whole application is broken anyway so it might as well error out.
+In addition to these lookup functions, `Config` has two other useful methods:
 
-In addition to these general purposes lookup APIs, `Config` has two other useful functions:
+* `++`: allows you to add two configuration objects together; this can be useful if you're loading multiple configurations from different sources. You can think of this as having the same semantics as concatenating the configuration files from which the the two objects were loaded.
 
-* `++`: allows you to add two configuration objects together; this can be useful if you're loading multiple configurations from different sources which is so often the case.
+* `subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if, for example, you only wanted to collect keys under the "foo" group: `cfg.subconfig("foo")`.
 
-* `subconfig`: given a `Config` instance you can get a new `Config` instance with only keys that satisfy a given predicate. This is really useful if - for example - you only wanted to collect keys in the "foo" section of the configuration: `cfg.subconfig("foo")`.
+## Mutable Configurations
+
+Alternatively, you can call `load` to get a `MutableConfig`. A `MutableConfig` can be turned into an immutable `Config` by calling its `immutable` method.
+
+`MutableConfig` also comes with a number of methods that allow you to mutate the configuration at runtime (all in the `Task` monad, of course).
+
+It also allows you to dynamically `reload` it from its resources, which will pick up any changes that have been made to those resources and notify subscribers. See the next section.
+
+<a name="reloading"></a>
+
+# Dynamic Reloading
+
+A `MutableConfig` can be reloaded from its resources with the `reload` method. This will load any changes to the underlying files for any subsequent lookups. It will also notify subscribers of those changes.
+
+Additionally, both on-disk and ZooKeeper files support _automatic_ reloading of a `MutableConfig` when the source files change at runtime.
+
+You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
+
+```
+cfg.flatMap(_.subscribe {
+  case (n, None) => Task { println(s"The parameter $n was removed") }
+  case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
+})
+```
+
+You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [scalaz-stream](http://github.com/scalaz/scalaz-stream) `Process[Task, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
 
 <a name="aws"></a>
 
 # AWS Configuration
 
-If you're running *Knobs* from within an application that is hosted on AWS, you're in luck!... *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. Consider the following example:
+If you're running *Knobs* from within an application that is hosted on AWS, you're in luck! *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. For example:
 
 ```
 import knobs._
 
 val c1: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(...)))
+  knobs.loadImmutable(Required(FileResource(someFile)))
 
 val cfg: Task[Config] =
   c1.flatMap(AWS.config)
@@ -235,7 +278,7 @@ This simple statement adds the following configuration keys to the in-memory con
     <tr>
       <td>aws.user-data</td>
       <td>Config</td>
-      <td>Dynamically embed Knobs configuration format strings in the AWS instance user-data and knobs will extract that and graft it to the running Config.</td>
+      <td>Dynamically embed Knobs configuration format strings in the AWS instance user-data and Knobs will extract that and graft it to the running Config.</td>
     </tr>
     <tr>
       <td>aws.security-groups</td>
@@ -276,22 +319,7 @@ This simple statement adds the following configuration keys to the in-memory con
   </tbody>
 </table>
 
-If *Knobs* is configured to load AWS values, but finds that it is in actual fact not running in AWS (for example in the local dev scenario) it will just ignore these keys and fail to fetch them gracefully (another good reason you should always `lookup` and not `require` for these keys).
-
-<a name="reloading"></a>
-
-# Dynamic Reloading
-
-A `Config` can be reloaded from its resources with the `reload` method. This will load any changes to the underlying files and notify subscribers of those changes.
-
-You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
-
-```
-cfg.flatMap(_.subscribe {
-  case (n, None) => Task { println(s"The parameter $n was removed") }
-  case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
-})
-```
+If *Knobs* is configured to load AWS values, but finds that it is in actual fact not running in AWS (for example in the local dev scenario), it will just ignore these keys and your `Config` will not contain them (a good reason you should always `lookup` and not `require` these keys).
 
 <a name="best-practice"></a>
 
