@@ -118,9 +118,20 @@ import "$(HOME)/etc/myapp.cfg"
 
 Absolute paths are imported as is. Relative paths are resolved with respect to the file they are imported from. It is an error for an `import` directive to name a file that doesn't exist, cannot be read, or contains errors.
 
+#### File lookup semantics
+
+The meaning of the `import` directive depends on the `Resource` type the configuration is being loaded from. In general, paths are resolved relative to the current file. *Knobs only supports importing files of the same resource type as the current file*. For example a classpath resource can only import other files from the classpath, and an on-disk file resource can only import other files from disk.
+
+* For a `FileResource`, an `import` is resolved as if the working directory were the directory containing the current file.
+* For a `ClassPathResource` an `import` resolves to another resource on _the same classloader's classpath_, as either an absolute path or relative to the current file.
+* For a `URLResource`, an `import` is resolved using [the semantics of `java.net.URI.resolve`](https://docs.oracle.com/javase/8/docs/api/java/net/URI.html#resolve-java.net.URI-).
+* For a `ZooKeeper` resource, a relative `import` resolves to a ZNode relative to the node containing the current file. An absolute path is rooted at the root ZNode available to the ZooKeeper connection.
+
+#### Importing into groups
+
 If an `import` appears inside a group, the group's naming prefix will be applied to all of the names imported from the given configuration file.
 
-Supposing we have a file named "foo.cfg":
+Supposing we have a file named "foo.cfg" that looks like this:
 
 ```
 bar = 1
