@@ -17,8 +17,8 @@ Features include:
   * Subscription-based notification of changes to configuration properties.
   * An `import` directive allows the configuration of a complex application to be split across several smaller files, or to be shared across several applications.
   * Helpful error messages when config files have errors in them.
-  * An extensible configuration loader. Extensions exist for loading config values from AWS, Typesafe Config, and ZooKeeper.
-  * Automatic reloading of the configuration when the source configuration change. Supported by both Filesystem and Zookeeper resources.
+  * An extensible configuration loader. Extensions exist for loading config values from AWS, Typesafe Config (HOCON), and ZooKeeper.
+  * Automatic reloading of the configuration when its resources change. Currently supported by both Filesystem and Zookeeper resources. Your extensions can make use of this feature to automatically reload your custom resources as well.
 
 <a name="syntax"></a>
 
@@ -84,7 +84,7 @@ A time unit specification for a Duration can be any of the following:
 
 Strings support interpolation, so that you can dynamically construct a string based on data in your configuration, the OS environment, or system properties.
 
-If a string value contains the special sequence `$(foo)` (for any name `foo`), then the name `foo` will be looked up in the configuration data and its value substituted. If that name cannot be found, it will be looked up in the Java system properties. Failing that, Knobs will look in the OS environment for a matching environment variable.
+If a string value contains the special sequence `$(foo)` (for any name `foo`), then Knobs will look up the name `foo` in the configuration data and substitute its value. If it can't find that name, it will look in the Java system properties. Failing that, Knobs will look in the OS environment for a matching environment variable.
 
 It is an error for a string interpolation fragment to contain a name that cannot be found either in the current configuration or the system environment.
 
