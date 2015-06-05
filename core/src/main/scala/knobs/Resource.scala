@@ -90,8 +90,12 @@ object FileResource {
 }
 
 object ClassPathResource {
-  /** Creates a new resource that loads a configuration from the classpath. */
-  def apply(s: Path): ResourceBox = Resource.box(Resource.ClassPath(s))
+  /**
+   * Creates a new resource that loads a configuration from the classpath of the provided
+   * `ClassLoader`, if given, otherwise by the `ClassLoader` of object `ClassPathResource`.
+   */
+  def apply(s: Path, loader: ClassLoader = getClass.getClassLoader): ResourceBox =
+    Resource.box(Resource.ClassPath(s, loader))
 }
 
 object SysPropsResource {
@@ -196,23 +200,22 @@ object Resource {
     override def shows(r: URI) = r.toString
   }
 
-  sealed trait ClassPath
-  def ClassPath(s: String): String @@ ClassPath = Tag[String, ClassPath](s)
+  final case class ClassPath(s: String, loader: ClassLoader)
 
-  implicit def classPathResource: Resource[String @@ ClassPath] = new Resource[String @@ ClassPath] {
-    def resolve(r: String @@ ClassPath, child: String) =
-      ClassPath(resolveName(Tag.unwrap(r), child))
-    def load(path: Worth[String @@ ClassPath]) = {
+  implicit def classPathResource: Resource[ClassPath] = new Resource[ClassPath] {
+    def resolve(r: ClassPath, child: String) =
+      ClassPath(resolveName(r.s, child), r.loader)
+    def load(path: Worth[ClassPath]) = {
       val r = path.worth
-      loadFile(path, Task(getClass.getClassLoader.getResourceAsStream(Tag.unwrap(r))) flatMap { x =>
-        if (x == null) Task.fail(new java.io.FileNotFoundException(r + " not found on classpath"))
+      loadFile(path, Task(r.loader.getResourceAsStream(r.s)) flatMap { x =>
+        if (x == null) Task.fail(new java.io.FileNotFoundException(r.s + " not found on classpath"))
         else Task(scala.io.Source.fromInputStream(x).mkString)
       })
     }
-    override def shows(r: String @@ ClassPath) = {
-      val res = getClass.getClassLoader.getResource(Tag.unwrap(r))
+    override def shows(r: ClassPath) = {
+      val res = r.loader.getResource(r.s)
       if (res == null)
-        s"missing classpath resource $r"
+        s"missing classpath resource ${r.s}"
       else
         res.toURI.toString
     }

@@ -84,6 +84,13 @@ object Test extends Properties("Knobs") {
       a => false
     ))
 
+  // Ensure that the resource is *not* available on a new classloader
+  lazy val classLoaderTest: Task[Prop] =
+    load(List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
+      case scalaz.-\/(f: java.io.FileNotFoundException) => true
+      case _ => false
+    }
+
   property("load-pathological-config") = loadTest.run
 
   property("interpolation") = interpTest.run
@@ -95,5 +102,7 @@ object Test extends Properties("Knobs") {
   property("load-fallback-chain") = fallbackTest.run
 
   property("fallback-chain-errors") = fallbackErrorTest.run
+
+  property("classloader") = classLoaderTest.run
 
 }
