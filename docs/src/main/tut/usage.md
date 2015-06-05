@@ -45,7 +45,7 @@ import knobs.{Required,ClassPathResource,Config}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  Required(ClassPathResource("foo.cfg", getClass.getClassLoader)))
+  Required(ClassPathResource("foo.cfg")))
 ```
 
 This of course assumes that the `foo.cfg` file is located in the root of the classpath (`/`). If you had a file that was not in the root, you could simply do something like:
@@ -55,7 +55,7 @@ import knobs.{Required,ClassPathResource,Config}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  	Required(ClassPathResource("subfolder/foo.cfg", getClass.getClassLoader)))
+  	Required(ClassPathResource("subfolder/foo.cfg")))
 ```
 
 Classpath resources are always immutable. They can technically be reloaded, but this generally does not serve any use what-so-ever as the file that is being loaded exists inside the application JAR so is a fixed entity at deploy time.
