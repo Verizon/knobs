@@ -29,7 +29,7 @@ object Test extends Properties("Knobs") {
     } yield r
 
   lazy val loadTest: Task[Prop] =
-    withLoad(List(Required(ClassPathResource("pathological.cfg", getClass.getClassLoader)))) { cfg => for {
+    withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
       aa <- cfg.lookup[Int]("aa")
       ab <- cfg.lookup[String]("ab")
       acx <- cfg.lookup[Int]("ac.x")
@@ -51,13 +51,13 @@ object Test extends Properties("Knobs") {
   }
 
   lazy val interpTest: Task[Prop] =
-    withLoad(List(Required(ClassPathResource("pathological.cfg", getClass.getClassLoader)))) { cfg => for {
+    withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
       home <- Task(sys.env.get("HOME"))
       cfgHome <- cfg.lookup[String]("ba")
     } yield cfgHome == home }
 
   lazy val importTest: Task[Prop] =
-    withLoad(List(Required(ClassPathResource("import.cfg", getClass.getClassLoader)))) { cfg => for {
+    withLoad(List(Required(ClassPathResource("import.cfg")))) { cfg => for {
       aa <- cfg.lookup[Int]("x.aa")
       p1 = (aa == Some(1)) :| "simple"
       acx <- cfg.lookup[Int]("x.ac.x")
@@ -71,13 +71,13 @@ object Test extends Properties("Knobs") {
 
   lazy val fallbackTest: Task[Prop] =
     withLoad(List(Required(
-      ClassPathResource("foobar.cfg", getClass.getClassLoader) or
-      ClassPathResource("pathological.cfg", getClass.getClassLoader)))) { _.lookup[Int]("aa").map(_ == Some(1)) }
+      ClassPathResource("foobar.cfg") or
+      ClassPathResource("pathological.cfg")))) { _.lookup[Int]("aa").map(_ == Some(1)) }
 
   // Check that there is one error per resource in the chain, plus one
   lazy val fallbackErrorTest: Task[Prop] =
-    load(List(Required(ClassPathResource("foobar.cfg", getClass.getClassLoader) or
-                       ClassPathResource("foobar.cfg", getClass.getClassLoader)))).attempt.map(_.fold(
+    load(List(Required(ClassPathResource("foobar.cfg") or
+                       ClassPathResource("foobar.cfg")))).attempt.map(_.fold(
       e =>
         { println(e);
         e.getMessage.toList.filter(_ == '\n').size == 3},

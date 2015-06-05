@@ -90,8 +90,12 @@ object FileResource {
 }
 
 object ClassPathResource {
-  /** Creates a new resource that loads a configuration from the classpath. */
-  def apply(s: Path, loader: ClassLoader): ResourceBox = Resource.box(Resource.ClassPath(s, loader))
+  /**
+   * Creates a new resource that loads a configuration from the classpath of the provided
+   * `ClassLoader`, if given, otherwise by the `ClassLoader` of object `ClassPathResource`.
+   */
+  def apply(s: Path, loader: ClassLoader = getClass.getClassLoader): ResourceBox =
+    Resource.box(Resource.ClassPath(s, loader))
 }
 
 object SysPropsResource {

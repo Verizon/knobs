@@ -39,7 +39,7 @@ case class ZNode(client: CuratorFramework, path: Path)
 object ZooKeeper {
 
   private val defaultCfg = List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
-    ClassPathResource("oncue/zookeeper.cfg", getClass.getClassLoader)))
+    ClassPathResource("oncue/zookeeper.cfg")))
 
   /**
    * A process that produces an event when the given path's data changes.
