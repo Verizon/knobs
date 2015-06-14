@@ -40,3 +40,18 @@ publishArtifact in (Compile, packageBin) := false
 publish := ()
 
 publishLocal := ()
+
+
+scmInfo := Some(ScmInfo(url("https://github.com/oncue/knobs"),
+                        "git@github.com:oncue/knobs.git"))
+
+bintrayPackageLabels := Seq("configuration", "functional programming", "scala", "reasonable")
+
+bintrayOrganization := Some("oncue")
+
+bintrayRepository := "releases"
+
+bintrayPackage := "knobs"
+
+
+
