@@ -16,6 +16,12 @@ object common {
   )
 
   def publishSettings = Seq(
-    publishMavenStyle := true
+    publishMavenStyle := true,
+    scmInfo := Some(ScmInfo(url("https://github.com/oncue/knobs"),
+                            "git@github.com:oncue/knobs.git")),
+    bintrayPackageLabels := Seq("configuration", "functional programming", "scala", "reasonable"),
+    bintrayOrganization := Some("oncue"),
+    bintrayRepository := "releases",
+    bintrayPackage := "knobs"
   )
 }
