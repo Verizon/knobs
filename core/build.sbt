@@ -1,6 +1,4 @@
 
-releaseSettings
-
 common.testSettings
 
 common.publishSettings
