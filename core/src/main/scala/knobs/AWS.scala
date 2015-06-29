@@ -82,7 +82,7 @@ object aws {
       c <- zone
       d <- securitygroups
       e <- localIP
-      f <- publicIP
+      f <- publicIP or Task.now(Config.empty) // machines in vpc do not have public ip
       g <- userdata
       h <- region
     } yield a ++ b ++ c ++ d ++ e ++ f ++ g ++ h) or Task.now(Config.empty) // fallback for running someplace other than aws.
