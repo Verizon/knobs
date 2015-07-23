@@ -106,14 +106,16 @@ object SysPropsResource {
   def apply(p: Pattern): ResourceBox = Resource.box(p)
 }
 
+import java.nio.file.{WatchService,WatchEvent}
+
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
-  val watchService = FileSystems.getDefault().newWatchService()
+  val watchService: WatchService = FileSystems.getDefault.newWatchService
   val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
     def newThread(r: Runnable) = {
       val t = Executors.defaultThreadFactory.newThread(r)
       t.setDaemon(true)
-      t.setName("watch-service-pool")
+      t.setName("knobs-watch-service-pool")
       t
     }
   })
@@ -169,11 +171,11 @@ object Resource {
     val dir = path.getParent
     val file = path.getFileName
 
-    def watcher = {
+    def watcher: Seq[WatchEvent[_]] = {
       val key = watchService.take
       for {
-        ev   <- key.pollEvents.asScala if ev.context.asInstanceOf[P] == file
-      } yield ev
+        e <- key.pollEvents.asScala if Option(e).map(_.context).exists(_ == file)
+      } yield e
     }
 
     dir.register(watchService, ENTRY_MODIFY)
