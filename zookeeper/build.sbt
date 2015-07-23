@@ -1,7 +1,5 @@
 
-common.testSettings
-
-common.publishSettings
+common.settings
 
 libraryDependencies ++= Seq(
   "org.apache.curator" % "curator-framework" % "2.8.0",
