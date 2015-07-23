@@ -7,6 +7,6 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.scalaz.stream" %% "scalaz-stream" % "0.7a",
+  "org.scalaz.stream" %% "scalaz-stream" % "0.7.1a",
   "oncue.ermine"      %% "ermine-parser" % "0.2.1-2"
 )
