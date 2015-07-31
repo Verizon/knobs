@@ -42,22 +42,22 @@ The `Task[Config]` is a pure value which, when run, loads your resources and ass
 
 To require the file "foo.cfg" from the classpath:
 
-```
+```tut
 import knobs.{Required,ClassPathResource,Config}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  Required(ClassPathResource("foo.cfg")))
+  Required(ClassPathResource("foo.cfg")) :: Nil)
 ```
 
 This of course assumes that the `foo.cfg` file is located in the root of the classpath (`/`). If you had a file that was not in the root, you could simply do something like:
 
-```
+```tut
 import knobs.{Required,ClassPathResource,Config}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  	Required(ClassPathResource("subfolder/foo.cfg")))
+  	Required(ClassPathResource("subfolder/foo.cfg")) :: Nil)
 ```
 
 Classpath resources are immutable and aren't intended to be reloaded in the general case. You can technically reload them, but this has no effect unless you're using a custom ClassLoader or employing some classpath tricks. Usually the classpath resource will exist inside your application JAR at deployment time and won't change at runtime.
@@ -66,13 +66,13 @@ Classpath resources are immutable and aren't intended to be reloaded in the gene
 
 `File` resources are probably the most common type of resource you might want to interact with. Here's a simple example of loading an immutable configuration from a file:
 
-```
+```tut
 import java.io.File
 import knobs.{Required,FileResource,Config}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  	Required(FileResource(new File("/path/to/foo.cfg"))))
+  	Required(FileResource(new File("/path/to/foo.cfg"))) :: Nil)
 ```
 
 On-disk files can be reloaded. [See below](#reloading) for information about reloading configurations.
@@ -81,12 +81,12 @@ On-disk files can be reloaded. [See below](#reloading) for information about rel
 
 Although you usually wouldn't want to load your entire configuration from Java system properties, there may be occasions when you want to use them to set specific configuration values (perhaps to override a few bindings). Here's an example:
 
-```
+```tut
 import knobs.{Required,SysPropsResource,Config,Prefix}
 import scalaz.concurrent.Task
 
 val cfg: Task[Config] = knobs.loadImmutable(
-  	Required(SysPropsResource(Prefix("oncue"))))
+  	Required(SysPropsResource(Prefix("oncue"))) :: Nil)
 ```
 
 System properties are just key/value pairs, and *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
@@ -135,10 +135,10 @@ Typically you will want to override this at deployment time.
 For the functional implementation, you essentially have to build your application within the context of the `scalaz.concurrent.Task` that contains the connection to Zookeeper (thus allowing you to subscribe to updates to your configuration from Zookeeper in real time). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will make this more difficult and you'll probably want to use the imperative alternative (see the next section). Otherwise, the usage pattern is the traditional monadic style:
 
 ```
-import knobs.{Zookeeper,Required}
+import knobs._
 
 ZooKeeper.withDefault { r => for {
-  cfg <- load(Required(r))
+  cfg <- load(Required(r) :: Nil)
 
   // Application code here
 
@@ -152,7 +152,7 @@ ZooKeeper.withDefault { r => for {
 If you're not building your application with monadic composition, you'll sadly have to go with an imperative style to knit Knobs correctly into the application lifecycle:
 
 ```
-import knobs.{Zookeeper,Required}
+import knobs._
 
 // somewhere at the outer layers of your application,
 // call this function to connect to zookeeper.
@@ -160,7 +160,7 @@ import knobs.{Zookeeper,Required}
 val (r, close) = ZooKeeper.unsafeDefault
 
 // This then loads the configuration from the ZooKeeper resource:
-val cfg = knobs.load(Required(r))
+val cfg = load(Required(r) :: Nil)
 
 // Your application code goes here
 
@@ -192,8 +192,8 @@ Once you have a `Config` instance loaded, and you want to lookup some values fro
 ```
 // load some configuration
 val config: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile))) or
-  knobs.loadImmutable(Required(ClassPathResource(someName)))
+  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil) or
+  knobs.loadImmutable(Required(ClassPathResource(someName)) :: Nil)
 
 // do something with it
 val connection: Task[Connection] =
@@ -257,7 +257,7 @@ If you're running *Knobs* from within an application that is hosted on AWS, you'
 import knobs._
 
 val c1: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile)))
+  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil)
 
 val cfg: Task[Config] =
   c1.flatMap(AWS.config)

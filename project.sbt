@@ -23,15 +23,15 @@ scalacOptions in Global := Seq(
 
 licenses in Global += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html"))
 
-lazy val knobs = project.in(file(".")).aggregate(core, docs, typesafe, zookeeper)
+lazy val knobs = project.in(file(".")).aggregate(core, typesafe, zookeeper, docs)
 
 lazy val core = project
-
-lazy val docs = project.dependsOn(core)
 
 lazy val typesafe = project.dependsOn(core)
 
 lazy val zookeeper = project.dependsOn(core)
+
+lazy val docs = project.dependsOn(core, zookeeper)
 
 releaseCrossBuild := true
 
