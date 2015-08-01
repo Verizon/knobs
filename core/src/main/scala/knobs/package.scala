@@ -55,7 +55,7 @@ package object knobs {
    * exception on error, such as if files do not exist or contain errors.
    *
    * File names have any environment variables expanded prior to the
-   * first time they are opened, so you can speficy a file name such as
+   * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
   def load(files: List[KnobsResource]): Task[MutableConfig] =
@@ -66,7 +66,7 @@ package object knobs {
    * exception on error, such as if files do not exist or contain errors.
    *
    * File names have any environment variables expanded prior to the
-   * first time they are opened, so you can speficy a file name such as
+   * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
   def loadImmutable(files: List[KnobsResource]): Task[Config] =
