@@ -260,7 +260,13 @@ You can also get a stream of changes with `changes(p)` where `p` is some `Patter
 If you're running *Knobs* from within an application that is hosted on AWS, you're in luck! *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. For example:
 
 ```tut
-val cfg: Task[Config] = aws.config
+val c1: Task[Config] =
+  loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
+
+val cfg = for {
+  a <- c1
+  b <- aws.config
+} yield a ++ b
 ```
 
 This simple statement adds the following configuration keys to the in-memory configuration:
