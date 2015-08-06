@@ -110,7 +110,7 @@ Regardless of which type of connection management you choose (see below), the me
 import knobs._
 
 // `r` is provided by the connection management options below
-knobs.load(Required(r))
+load(Required(r) :: Nil)
 ```
 
 ### Configuring Zookeeper Knobs with Knobs
@@ -189,11 +189,16 @@ Once loaded, configurations come in two flavors: `Config` and `MutableConfig`. T
 
 Once you have a `Config` instance loaded, and you want to lookup some values from it, the API is very simple. Here's an example:
 
-```
+```tut
+import knobs._
+
 // load some configuration
-val config: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil) or
-  knobs.loadImmutable(Required(ClassPathResource(someName)) :: Nil)
+val config: Task[Config] = loadImmutable(
+  Required(FileResource(new File("someFile.cfg")) or
+  ClassPathResource("someName.cfg")) :: Nil
+)
+
+case class Connection(usr: String, pwd: String, port:Option[Int])
 
 // do something with it
 val connection: Task[Connection] =
@@ -201,9 +206,8 @@ val connection: Task[Connection] =
     cfg <- config
     usr = cfg.require[String]("db.username")
     pwd = cfg.require[String]("db.password")
-    prt = cfg.lookup[String]("db.port")
-  } yield Connection(usr,pwd,port)
-
+    port = cfg.lookup[Int]("db.port")
+  } yield Connection(usr, pwd, port)
 ```
 
 There are two different ways of looking up a configuration value in this example:
@@ -238,11 +242,13 @@ Additionally, both on-disk and ZooKeeper files support _automatic_ reloading of 
 
 You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
 
-```
-cfg.flatMap(_.subscribe {
+```tut
+val cfg: Task[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
+
+cfg.flatMap(_.subscribe (Pattern("somePrefix.*"), {
   case (n, None) => Task { println(s"The parameter $n was removed") }
   case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
-})
+}))
 ```
 
 You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [scalaz-stream](http://github.com/scalaz/scalaz-stream) `Process[Task, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
@@ -253,15 +259,14 @@ You can also get a stream of changes with `changes(p)` where `p` is some `Patter
 
 If you're running *Knobs* from within an application that is hosted on AWS, you're in luck! *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. For example:
 
-```
-import knobs._
-
+```tut
 val c1: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil)
+  loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
 
-val cfg: Task[Config] =
-  c1.flatMap(AWS.config)
-
+val cfg = for {
+  a <- c1
+  b <- aws.config
+} yield a ++ b
 ```
 
 This simple statement adds the following configuration keys to the in-memory configuration:
