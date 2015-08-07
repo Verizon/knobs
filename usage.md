@@ -51,7 +51,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   Required(ClassPathResource("foo.cfg")) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@4deb0b4b
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@5815f77a
 ```
 
 This of course assumes that the `foo.cfg` file is located in the root of the classpath (`/`). If you had a file that was not in the root, you could simply do something like:
@@ -65,7 +65,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(ClassPathResource("subfolder/foo.cfg")) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@69623ad7
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@6aac7643
 ```
 
 Classpath resources are immutable and aren't intended to be reloaded in the general case. You can technically reload them, but this has no effect unless you're using a custom ClassLoader or employing some classpath tricks. Usually the classpath resource will exist inside your application JAR at deployment time and won't change at runtime.
@@ -86,7 +86,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(FileResource(new File("/path/to/foo.cfg"))) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@76cf48f1
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@dadfa91
 ```
 
 On-disk files can be reloaded. [See below](#reloading) for information about reloading configurations.
@@ -104,7 +104,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(SysPropsResource(Prefix("oncue"))) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@3d139099
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@1d820e8c
 ```
 
 System properties are just key/value pairs, and *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
@@ -128,7 +128,7 @@ Regardless of which type of connection management you choose (see below), the me
 import knobs._
 
 // `r` is provided by the connection management options below
-knobs.load(Required(r))
+load(Required(r) :: Nil)
 ```
 
 ### Configuring Zookeeper Knobs with Knobs
@@ -207,21 +207,29 @@ Once loaded, configurations come in two flavors: `Config` and `MutableConfig`. T
 
 Once you have a `Config` instance loaded, and you want to lookup some values from it, the API is very simple. Here's an example:
 
-```
-// load some configuration
-val config: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil) or
-  knobs.loadImmutable(Required(ClassPathResource(someName)) :: Nil)
+```scala
+scala> import knobs._
+import knobs._
 
-// do something with it
-val connection: Task[Connection] =
-  for {
-    cfg <- config
-    usr = cfg.require[String]("db.username")
-    pwd = cfg.require[String]("db.password")
-    prt = cfg.lookup[String]("db.port")
-  } yield Connection(usr,pwd,port)
+scala> // load some configuration
+     | val config: Task[Config] = loadImmutable(
+     |   Required(FileResource(new File("someFile.cfg")) or
+     |   ClassPathResource("someName.cfg")) :: Nil
+     | )
+config: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@3b2ec70b
 
+scala> case class Connection(usr: String, pwd: String, port:Option[Int])
+defined class Connection
+
+scala> // do something with it
+     | val connection: Task[Connection] =
+     |   for {
+     |     cfg <- config
+     |     usr = cfg.require[String]("db.username")
+     |     pwd = cfg.require[String]("db.password")
+     |     port = cfg.lookup[Int]("db.port")
+     |   } yield Connection(usr, pwd, port)
+connection: scalaz.concurrent.Task[Connection] = scalaz.concurrent.Task@73a26f9f
 ```
 
 There are two different ways of looking up a configuration value in this example:
@@ -256,11 +264,15 @@ Additionally, both on-disk and ZooKeeper files support _automatic_ reloading of 
 
 You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
 
-```
-cfg.flatMap(_.subscribe {
-  case (n, None) => Task { println(s"The parameter $n was removed") }
-  case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
-})
+```scala
+scala> val cfg: Task[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
+cfg: scalaz.concurrent.Task[knobs.MutableConfig] = scalaz.concurrent.Task@5e6f7ab2
+
+scala> cfg.flatMap(_.subscribe (Pattern("somePrefix.*"), {
+     |   case (n, None) => Task { println(s"The parameter $n was removed") }
+     |   case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
+     | }))
+res2: scalaz.concurrent.Task[Unit] = scalaz.concurrent.Task@c5a7830
 ```
 
 You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [scalaz-stream](http://github.com/scalaz/scalaz-stream) `Process[Task, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
@@ -271,15 +283,16 @@ You can also get a stream of changes with `changes(p)` where `p` is some `Patter
 
 If you're running *Knobs* from within an application that is hosted on AWS, you're in luck! *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. For example:
 
-```
-import knobs._
+```scala
+scala> val c1: Task[Config] =
+     |   loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
+c1: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@6a720b0a
 
-val c1: Task[Config] =
-  knobs.loadImmutable(Required(FileResource(someFile)) :: Nil)
-
-val cfg: Task[Config] =
-  c1.flatMap(AWS.config)
-
+scala> val cfg = for {
+     |   a <- c1
+     |   b <- aws.config
+     | } yield a ++ b
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@2c5bd592
 ```
 
 This simple statement adds the following configuration keys to the in-memory configuration:
