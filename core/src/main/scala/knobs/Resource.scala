@@ -109,8 +109,8 @@ object SysPropsResource {
 object URIResource {
   /**
    * Creates a new resource that loads a configuration from the given URI.
-   * Note that the URI also needs to be a valid URI.
-   * We are not using `java.net.URI` here because it has side effects.
+   * Note that the URI also needs to be a valid URL.
+   * We are not using `java.net.URL` here because it has side effects.
    */
   def apply(u: URI): ResourceBox = Resource.box(u)
 }
