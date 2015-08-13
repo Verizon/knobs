@@ -16,6 +16,12 @@ libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
 
 Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
 
+You will probably need to add a resolver entry so SBT can find the jar:
+
+````
+  resolvers += "Oncue Bintray Repo" at "http://dl.bintray.com/oncue/releases"
+````
+
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
 <a name="resources"></a>
