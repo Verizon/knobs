@@ -84,6 +84,19 @@ object Test extends Properties("Knobs") {
       a => false
     ))
 
+  // Make sure that loading from a fake (but valid) URI fails with an expected error
+  lazy val uriTest: Task[Prop] = {
+    import java.net._
+    load(List(Required(
+      URIResource(new URI("http://lolcathost"))))).attempt.map(_.fold(
+        {
+          case e: UnknownHostException => true
+          case _ => false
+        },
+        _ => false
+      ))
+  }
+
   // Ensure that the resource is *not* available on a new classloader
   lazy val classLoaderTest: Task[Prop] =
     load(List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
@@ -103,6 +116,9 @@ object Test extends Properties("Knobs") {
 
   property("fallback-chain-errors") = fallbackErrorTest.run
 
+  property("load-uri") = uriTest.run
+
   property("classloader") = classLoaderTest.run
+
 
 }
