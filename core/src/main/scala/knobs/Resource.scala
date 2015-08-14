@@ -16,7 +16,7 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import java.net.URI
+import java.net.{URI, URL}
 import java.io.File
 import java.nio.file.{ FileSystems, Path => P, WatchEvent }
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
@@ -104,6 +104,15 @@ object SysPropsResource {
    * matching the given pattern.
    */
   def apply(p: Pattern): ResourceBox = Resource.box(p)
+}
+
+object URIResource {
+  /**
+   * Creates a new resource that loads a configuration from the given URI.
+   * Note that the URI also needs to be a valid URL.
+   * We are not using `java.net.URL` here because it has side effects.
+   */
+  def apply(u: URI): ResourceBox = Resource.box(u)
 }
 
 import java.nio.file.{WatchService,WatchEvent}
@@ -198,7 +207,7 @@ object Resource {
   implicit def uriResource: Resource[URI] = new Resource[URI] {
     def resolve(r: URI, child: String): URI = r resolve new URI(child)
     def load(path: Worth[URI]) =
-      loadFile(path, Task(scala.io.Source.fromFile(path.worth).mkString + "\n"))
+      loadFile(path, Task(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
     override def shows(r: URI) = r.toString
   }
 
@@ -219,7 +228,7 @@ object Resource {
       if (res == null)
         s"missing classpath resource ${r.s}"
       else
-        res.toURI.toString
+        res.toString
     }
   }
 
@@ -263,7 +272,7 @@ object Resource {
       val OneAnd(r, rs) = path.worth
       (r +: rs).foldRight(
         if (path.isRequired)
-          Task.now(left("\nFallback chain failed to load."))
+          Task.now(left(s"\nKnobs failed to load ${path.worth.show}"))
         else
           Task.now(right(List[Directive]()))
       )(orAccum).flatMap(_.fold(
