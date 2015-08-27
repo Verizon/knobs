@@ -85,8 +85,18 @@ object ResourceBox {
 
 
 object FileResource {
-  /** Creates a new resource that loads a configuration from a file. */
-  def apply(f: File): ResourceBox = Watched(f)
+  /**
+   * Creates a new resource that loads a configuration from a file.
+   * Optionally creates a process to watch changes to the file and
+   * reload any `MutableConfig` if it has changed.
+   */
+  def apply(f: File, watched: Boolean = true): ResourceBox = Watched(f)
+
+  /**
+   * Creates a new resource that loads a configuration from a file.
+   * Does not watch the file for changes or reload the config automatically.
+   */
+  def unwatched(f: File): ResourceBox = Resource.box(f)
 }
 
 object ClassPathResource {
@@ -176,19 +186,30 @@ object Resource {
     } yield r
   }
 
+  def failIfNone[A](a: Option[A], msg: String): Task[A] =
+    a.map(Task.now).getOrElse(Task.fail(new RuntimeException(msg)))
+
   def watchEvent(path: P): Process[Task, WatchEvent[_]] = {
-    val dir = path.getParent
-    val file = path.getFileName
+    val dir = failIfNone(Option(path.getParent), s"Path $path has no parent.")
+    val file = failIfNone(Option(path.getFileName), s"Path $path has no file name.")
 
-    def watcher: Seq[WatchEvent[_]] = {
-      val key = watchService.take
-      for {
-        e <- key.pollEvents.asScala if Option(e).map(_.context).exists(_ == file)
-      } yield e
-    }
+    def watcher: Task[Seq[WatchEvent[_]]] = for {
+      f   <- file
+      w <- Task {
+        val key = watchService.take
+        for {
+          e <- key.pollEvents.asScala if Option(e).map(_.context).exists(_ == file)
+        } yield e
+      }(watchPool)
+    } yield w
 
-    dir.register(watchService, ENTRY_MODIFY)
-    Process.eval(Task(watcher)(watchPool)).flatMap(Process.emitAll).repeat
+    for {
+      _ <- Process.eval(for {
+        d <- dir
+        _ <- Task.delay(d.register(watchService, ENTRY_MODIFY))
+      } yield ())
+      p <- Process.eval(watcher).flatMap(Process.emitAll).repeat
+    } yield p
   }
 
   implicit def fileResource: Watchable[File] = new Watchable[File] {
