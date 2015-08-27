@@ -218,7 +218,7 @@ object Resource {
     def watch(path: Worth[File]) = for {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
-      es <- Task.fork((path.worth +: rs).traverse(f => watchEvent(f.toPath)))
+      es <- (path.worth +: rs).traverse(f => watchEvent(f.toPath))
     } yield (ds, mergeN(Process.emitAll(es.map(_.map(_ => ())))))
   }
 
