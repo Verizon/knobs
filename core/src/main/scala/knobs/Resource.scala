@@ -128,6 +128,7 @@ object URIResource {
 import java.nio.file.{WatchService,WatchEvent}
 
 object Resource {
+  val watchService: WatchService = FileSystems.getDefault.newWatchService
   type FallbackChain = OneAnd[Vector, ResourceBox]
   val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
     def newThread(r: Runnable) = {
@@ -192,19 +193,18 @@ object Resource {
     val dir = failIfNone(Option(path.getParent), s"Path $path has no parent.")
     val file = failIfNone(Option(path.getFileName), s"Path $path has no file name.")
 
-    def watcher(s: WatchService): Task[Seq[WatchEvent[_]]] = for {
+    def watcher: Task[Seq[WatchEvent[_]]] = for {
       f   <- file
       w <- Task {
-        val key = s.take
-        key.pollEvents.asScala
+        val key = watchService.take
+        key.pollEvents.asScala.filter(_.context == f)
       }(watchPool)
     } yield w
 
     for {
       d <- dir
-      watchService <- Task.delay(FileSystems.getDefault.newWatchService)
       _ <- Task.delay(d.register(watchService, ENTRY_MODIFY))
-    } yield Process.eval(watcher(watchService)).flatMap(Process.emitAll).repeat
+    } yield Process.eval(watcher).flatMap(Process.emitAll).repeat
   }
 
   implicit def fileResource: Watchable[File] = new Watchable[File] {
