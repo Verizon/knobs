@@ -90,13 +90,13 @@ object FileResource {
    * Optionally creates a process to watch changes to the file and
    * reload any `MutableConfig` if it has changed.
    */
-  def apply(f: File, watched: Boolean = true): ResourceBox = Watched(f)
+  def apply(f: File, watched: Boolean = true): ResourceBox = Watched(f.getCanonicalFile)
 
   /**
    * Creates a new resource that loads a configuration from a file.
    * Does not watch the file for changes or reload the config automatically.
    */
-  def unwatched(f: File): ResourceBox = Resource.box(f)
+  def unwatched(f: File): ResourceBox = Resource.box(f.getCanonicalFile)
 }
 
 object ClassPathResource {
@@ -190,8 +190,12 @@ object Resource {
     a.map(Task.now).getOrElse(Task.fail(new RuntimeException(msg)))
 
   def watchEvent(path: P): Task[Process[Task, WatchEvent[_]]] = {
-    val dir = failIfNone(Option(path.getParent), s"Path $path has no parent.")
-    val file = failIfNone(Option(path.getFileName), s"Path $path has no file name.")
+    val dir =
+      failIfNone(Option(path.getParent),
+                 s"File $path has no parent directory. Please provide a canonical file name.")
+    val file =
+      failIfNone(Option(path.getFileName),
+                 s"Path $path has no file name.")
 
     def watcher: Task[Seq[WatchEvent[_]]] = for {
       f   <- file
