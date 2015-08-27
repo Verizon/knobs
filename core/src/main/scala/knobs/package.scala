@@ -70,7 +70,10 @@ package object knobs {
    * `"$(HOME)/myapp.cfg"`.
    */
   def loadImmutable(files: List[KnobsResource]): Task[Config] =
-    load(files).flatMap(_.immutable)
+    load(files.map(_.map {
+      case WatchBox(b, w) => ResourceBox(b)(w)
+      case x => x
+    })).flatMap(_.immutable)
 
   /**
    * Create a `MutableConfig` from the contents of the named files, placing them

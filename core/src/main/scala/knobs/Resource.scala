@@ -85,8 +85,18 @@ object ResourceBox {
 
 
 object FileResource {
-  /** Creates a new resource that loads a configuration from a file. */
-  def apply(f: File): ResourceBox = Watched(f)
+  /**
+   * Creates a new resource that loads a configuration from a file.
+   * Optionally creates a process to watch changes to the file and
+   * reload any `MutableConfig` if it has changed.
+   */
+  def apply(f: File, watched: Boolean = true): ResourceBox = Watched(f)
+
+  /**
+   * Creates a new resource that loads a configuration from a file.
+   * Does not watch the file for changes or reload the config automatically.
+   */
+  def unwatched(f: File): ResourceBox = Resource.box(f)
 }
 
 object ClassPathResource {
@@ -119,7 +129,6 @@ import java.nio.file.{WatchService,WatchEvent}
 
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
-  val watchService: WatchService = FileSystems.getDefault.newWatchService
   val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
     def newThread(r: Runnable) = {
       val t = Executors.defaultThreadFactory.newThread(r)
@@ -176,22 +185,31 @@ object Resource {
     } yield r
   }
 
-  def watchEvent(path: P): Process[Task, WatchEvent[_]] = {
-    val dir = path.getParent
-    val file = path.getFileName
+  def failIfNone[A](a: Option[A], msg: String): Task[A] =
+    a.map(Task.now).getOrElse(Task.fail(new RuntimeException(msg)))
 
-    def watcher: Seq[WatchEvent[_]] = {
-      val key = watchService.take
-      for {
-        e <- key.pollEvents.asScala if Option(e).map(_.context).exists(_ == file)
-      } yield e
-    }
+  def watchEvent(path: P): Task[Process[Task, WatchEvent[_]]] = {
+    val dir = failIfNone(Option(path.getParent), s"Path $path has no parent.")
+    val file = failIfNone(Option(path.getFileName), s"Path $path has no file name.")
 
-    dir.register(watchService, ENTRY_MODIFY)
-    Process.eval(Task(watcher)(watchPool)).flatMap(Process.emitAll).repeat
+    def watcher(s: WatchService): Task[Seq[WatchEvent[_]]] = for {
+      f   <- file
+      w <- Task {
+        val key = s.take
+        key.pollEvents.asScala
+      }(watchPool)
+    } yield w
+
+    for {
+      d <- dir
+      watchService <- Task.delay(FileSystems.getDefault.newWatchService)
+      _ <- Task.delay(d.register(watchService, ENTRY_MODIFY))
+    } yield Process.eval(watcher(watchService)).flatMap(Process.emitAll).repeat
   }
 
   implicit def fileResource: Watchable[File] = new Watchable[File] {
+    import scalaz.syntax.traverse._
+    import scalaz.std.list._
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
     def load(path: Worth[File]) =
@@ -200,8 +218,8 @@ object Resource {
     def watch(path: Worth[File]) = for {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
-      reloads <- Task { Process.emitAll(path.worth +: rs).map { (f: File) => watchEvent(f.toPath).map(_ => ()) } }
-    } yield (ds, mergeN(reloads))
+      es <- (path.worth +: rs).traverse(f => watchEvent(f.toPath))
+    } yield (ds, mergeN(Process.emitAll(es.map(_.map(_ => ())))))
   }
 
   implicit def uriResource: Resource[URI] = new Resource[URI] {
