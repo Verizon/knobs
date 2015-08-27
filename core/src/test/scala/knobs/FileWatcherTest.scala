@@ -33,16 +33,18 @@ object FileWatcherTests extends Properties("FileWatch") {
     val latch = new CountDownLatch(1)
     val prg = for {
       ref <- IORef("")
-      _   <- Task(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
+      _   <- Task.delay(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
       cfg <- load(List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(t@CfgText(s))) =>
-          ref.write(t.pretty).flatMap(_ => Task(latch.countDown))
-        case _ => Task(latch.countDown)
+          ref.write(t.pretty).flatMap(_ => Task.delay(latch.countDown))
+        case _ => {
+          Task.delay(latch.countDown)
+        }
       })
-      _   <- Task(Thread.sleep(1000))
-      _   <- Task(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
-      _   <- Task(latch.await)
+      _   <- Task.delay(Thread.sleep(1000))
+      _   <- Task.delay(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
+      _   <- Task.delay(latch.await)
       r   <- ref.read
     } yield r == "\"bar\""
     prg.run
