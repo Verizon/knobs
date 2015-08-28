@@ -26,6 +26,7 @@ import scalaz._
 import scalaz.syntax.show._
 import scalaz.concurrent.Task
 import scalaz.stream._
+import scalaz.stream.async.mutable.Topic
 import scalaz.stream.merge.mergeN
 
 /** Resources from which configuration files can be loaded */
@@ -128,7 +129,6 @@ object URIResource {
 import java.nio.file.{WatchService,WatchEvent}
 
 object Resource {
-  val watchService: WatchService = FileSystems.getDefault.newWatchService
   type FallbackChain = OneAnd[Vector, ResourceBox]
   val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
     def newThread(r: Runnable) = {
@@ -138,6 +138,13 @@ object Resource {
       t
     }
   })
+
+  private val watchService: WatchService = FileSystems.getDefault.newWatchService
+  private val watchProcess: Process[Task, WatchEvent[_]] =
+    Process.eval(Task(watchService.take)(watchPool)).flatMap(s =>
+      Process.emitAll(s.pollEvents.asScala)).repeat
+  private val watchTopic: Topic[WatchEvent[_]] =
+    async.topic(watchProcess)(scalaz.concurrent.Strategy.Executor(watchPool))
 
   /** Construct a new boxed resource from a valid `Resource` */
   def apply[B](r: B)(implicit B: Resource[B]): ResourceBox = box(r)
@@ -197,18 +204,11 @@ object Resource {
       failIfNone(Option(path.getFileName),
                  s"Path $path has no file name.")
 
-    def watcher: Task[Seq[WatchEvent[_]]] = for {
-      f   <- file
-      w <- Task {
-        val key = watchService.take
-        key.pollEvents.asScala.filter(_.context == f)
-      }(watchPool)
-    } yield w
-
     for {
       d <- dir
       _ <- Task.delay(d.register(watchService, ENTRY_MODIFY))
-    } yield Process.eval(watcher).flatMap(Process.emitAll).repeat
+      f <- file
+    } yield watchTopic.subscribe.filter(_.context == f)
   }
 
   implicit def fileResource: Watchable[File] = new Watchable[File] {
