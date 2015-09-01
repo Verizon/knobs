@@ -70,10 +70,10 @@ object aws {
     fetch("meta-data/placement/availability-zone").map(_.dropRight(1)).flatMap(convert("region"))
 
   def localIP: Task[Config] =
-    fetch("meta-data/local-ipv4").flatMap(convert("local-ipv4", section = "network"))
+    fetch("meta-data/local-ipv4").flatMap(convert("local-ipv4", section = "aws.network"))
 
   def publicIP: Task[Config] =
-    fetch("meta-data/public-ipv4").flatMap(convert("public-ipv4", section = "network"))
+    fetch("meta-data/public-ipv4").flatMap(convert("public-ipv4", section = "aws.network"))
 
   /**
    * Overhead for calling this mofo is high, so its not the kind of
