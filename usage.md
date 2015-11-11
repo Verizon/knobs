@@ -8,15 +8,17 @@ section: "usage"
 
 <a name="getting-started"></a>
 
-First you need to add the dependency for Knobs to your `build.scala` or your `build.sbt` file:
+First you need to add the Bintray resolver and dependency for Knobs to your `build.scala` or your `build.sbt` file:
 
-````
-libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
-````
+```
+resolvers += Resolver.bintrayRepo("oncue", "releases")
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
+libraryDependencies += "oncue.knobs" %% "core" % "x.x.x"
+```
 
-Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
+Where `x.x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
+
+Once you have the resolver and dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
 <a name="resources"></a>
 
