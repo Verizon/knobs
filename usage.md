@@ -8,15 +8,20 @@ section: "usage"
 
 <a name="getting-started"></a>
 
-First you need to add the dependency for Knobs to your `build.scala` or your `build.sbt` file:
+First you need to add the Bintray resolvers for [scalaz-stream](https://github.com/scalaz/scalaz-stream) and Knobs, 
+besides the dependency, to your `build.scala` or `build.sbt` file:
 
-````
-libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
-````
+```
+resolvers += Resolver.bintrayRepo("scalaz", "releases")
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
+resolvers += Resolver.bintrayRepo("oncue", "releases")
 
-Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
+libraryDependencies += "oncue.knobs" %% "core" % "x.x.x"
+```
+
+Where `x.x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
+
+Once you have the resolvers and dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
 <a name="resources"></a>
 
