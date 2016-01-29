@@ -118,7 +118,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    */
   def require[A:Configured](name: Name): Task[A] = for {
     v <- lookup(name)
-    r <- v.map(Task(_)).getOrElse(Task.fail(KeyError(name)))
+    r <- v.map(Task.now(_)).getOrElse(Task.fail(KeyError(name)))
   } yield r
 
   /**

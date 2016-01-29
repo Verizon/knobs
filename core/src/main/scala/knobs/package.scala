@@ -104,8 +104,7 @@ package object knobs {
     s <- IORef(Map[Pattern, List[ChangeHandler]]())
     bc = BaseConfig(paths = p, cfgMap = m, subs = s)
     ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
-    // TODO: Give these errors to a proper error handling mechanism
-    _ <- Task(ticks.evalMap(_ => bc.reload).run.runAsync(_.fold(_.printStackTrace, _ => ())))
+    _ <- Task.async[Unit](k => ticks.evalMap(_ => bc.reload).run.runAsync(k))
   } yield bc
 
   private [knobs] def addDot(p: String): String =
@@ -155,7 +154,7 @@ package object knobs {
           Task.fail(new Exception(s"type error: $name must be a number or a string"))
         case _ => for {
           // added because lots of sys-admins think software is case unaware. Doh!
-          e <- Task(sys.props.get(name) orElse sys.env.get(name) orElse sys.env.get(name.toLowerCase))
+          e <- Task.delay(sys.props.get(name) orElse sys.env.get(name) orElse sys.env.get(name.toLowerCase))
           r <- e.map(Task.now).getOrElse(
             Task.fail(ConfigError(f, s"no such variable $name")))
         } yield r
@@ -218,10 +217,10 @@ package object knobs {
       a(n, v).attempt.flatMap {
         case -\/(e) =>
           Task.fail(new Exception(s"A ChangeHandler threw an exception for ${(p, n)}", e))
-        case _ => Task(())
+        case _ => Task.now(())
       }
 
-    subs.foldLeft(Task(())) {
+    subs.foldLeft(Task.now(())) {
       case (next, (p@Exact(n), acts)) => for {
         _ <- next
         v = after get n

@@ -61,8 +61,8 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
       n1 <- cfg.require[Int]("foo")
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(CfgNumber(n))) =>
-          ref.write(n.toInt).flatMap(_ => Task(latch.countDown))
-        case _ => Task(latch.countDown)
+          ref.write(n.toInt).flatMap(_ => Task.delay(latch.countDown))
+        case _ => Task.delay(latch.countDown)
       })
       _ <- Task {
         c.setData.forPath("/knobs.cfg", "foo = 20\n".toArray.map(_.toByte))

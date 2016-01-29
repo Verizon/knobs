@@ -87,8 +87,8 @@ object ZooKeeper {
       cfg <- knobs.loadImmutable(config)
       loc  = cfg.require[String]("zookeeper.connection-string")
       path = cfg.require[String]("zookeeper.path-to-config")
-      c <- Task(CuratorFrameworkFactory.newClient(loc, retryPolicy))
-      _ <- Task(c.start)
+      c <- Task.delay(CuratorFrameworkFactory.newClient(loc, retryPolicy))
+      _ <- Task.delay(c.start)
     } yield (Watched(ZNode(c, path)), c)
   }
 
@@ -139,7 +139,7 @@ object ZooKeeper {
     p <- doZK(config)
     (box, c) = p
     _ <- k(box)
-    _ <- Task(c.close)
+    _ <- Task.delay(c.close)
   } yield ()
 
   /**
@@ -177,7 +177,7 @@ object ZooKeeper {
 
   protected def unsafe(config: List[KnobsResource] = defaultCfg): (ResourceBox, Task[Unit]) = {
     val (box, c) = doZK(config).run
-    (box, Task(c.close))
+    (box, Task.delay(c.close))
   }
 
 }
