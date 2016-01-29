@@ -52,7 +52,7 @@ object Test extends Properties("Knobs") {
 
   lazy val interpTest: Task[Prop] =
     withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
-      home <- Task(sys.env.get("HOME"))
+      home <- Task.delay(sys.env.get("HOME"))
       cfgHome <- cfg.lookup[String]("ba")
     } yield cfgHome == home }
 

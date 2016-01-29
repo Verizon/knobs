@@ -217,7 +217,7 @@ object Resource {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
     def load(path: Worth[File]) =
-      loadFile(path, Task(scala.io.Source.fromFile(path.worth).mkString))
+      loadFile(path, Task.delay(scala.io.Source.fromFile(path.worth).mkString))
     override def shows(r: File) = r.toString
     def watch(path: Worth[File]) = for {
       ds <- load(path)
@@ -229,7 +229,7 @@ object Resource {
   implicit def uriResource: Resource[URI] = new Resource[URI] {
     def resolve(r: URI, child: String): URI = r resolve new URI(child)
     def load(path: Worth[URI]) =
-      loadFile(path, Task(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
+      loadFile(path, Task.delay(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
     override def shows(r: URI) = r.toString
   }
 
@@ -240,9 +240,9 @@ object Resource {
       ClassPath(resolveName(r.s, child), r.loader)
     def load(path: Worth[ClassPath]) = {
       val r = path.worth
-      loadFile(path, Task(r.loader.getResourceAsStream(r.s)) flatMap { x =>
+      loadFile(path, Task.delay(r.loader.getResourceAsStream(r.s)) flatMap { x =>
         if (x == null) Task.fail(new java.io.FileNotFoundException(r.s + " not found on classpath"))
-        else Task(scala.io.Source.fromInputStream(x).mkString)
+        else Task.delay(scala.io.Source.fromInputStream(x).mkString)
       })
     }
     override def shows(r: ClassPath) = {
@@ -263,13 +263,13 @@ object Resource {
     def load(path: Worth[Pattern]) = {
       val pat = path.worth
       for {
-        ds <- Task(sys.props.toMap.filterKeys(pat matches _).map {
+        ds <- Task.delay(sys.props.toMap.filterKeys(pat matches _).map {
                    case (k, v) => Bind(k, ConfigParser.value.parse(v).toOption.getOrElse(CfgText(v)))
                  })
         r <- (ds.isEmpty, path) match {
           case (true, Required(_)) =>
             Task.fail(new ConfigError(path.worth, s"Required system properties $pat not present."))
-          case _ => Task(ds.toList)
+          case _ => Task.now(ds.toList)
         }
       } yield r
     }
