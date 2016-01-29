@@ -130,14 +130,20 @@ import java.nio.file.{WatchService,WatchEvent}
 
 object Resource {
   type FallbackChain = OneAnd[Vector, ResourceBox]
-  val watchPool = Executors.newFixedThreadPool(1, new ThreadFactory {
+  def pool(name: String) = Executors.newCachedThreadPool(new ThreadFactory {
     def newThread(r: Runnable) = {
       val t = Executors.defaultThreadFactory.newThread(r)
       t.setDaemon(true)
-      t.setName("knobs-watch-service-pool")
+      t.setName(name)
       t
     }
   })
+
+  // Thread pool for asynchronously watching config files
+  val watchPool = pool("knobs-watch-service-pool")
+
+  // Thread pool for notifying subcribers of changes to mutable configs
+  val notificationPool = pool("knobs-notification-pool")
 
   private val watchService: WatchService = FileSystems.getDefault.newWatchService
   private val watchProcess: Process[Task, WatchEvent[_]] =

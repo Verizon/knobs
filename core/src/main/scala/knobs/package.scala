@@ -22,6 +22,7 @@ import scalaz.syntax.monad._
 import scalaz.std.list._
 import scalaz.stream._
 import scalaz.stream.merge.mergeN
+import java.util.concurrent.ExecutorService
 
 package object knobs {
   import Resource._
@@ -58,8 +59,9 @@ package object knobs {
    * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def load(files: List[KnobsResource]): Task[MutableConfig] =
-    loadp(files.map(f => ("", f))).map(MutableConfig("", _))
+  def load(files: List[KnobsResource],
+           pool: ExecutorService = Resource.notificationPool): Task[MutableConfig] =
+    loadp(files.map(f => ("", f)), pool).map(MutableConfig("", _))
 
   /**
    * Create an immutable `Config` from the contents of the named files. Throws an
@@ -69,18 +71,20 @@ package object knobs {
    * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def loadImmutable(files: List[KnobsResource]): Task[Config] =
+  def loadImmutable(files: List[KnobsResource],
+                    pool: ExecutorService = Resource.notificationPool): Task[Config] =
     load(files.map(_.map {
       case WatchBox(b, w) => ResourceBox(b)(w)
       case x => x
-    })).flatMap(_.immutable)
+    }), pool).flatMap(_.immutable)
 
   /**
    * Create a `MutableConfig` from the contents of the named files, placing them
    * into named prefixes.
    */
-  def loadGroups(files: List[(Name, KnobsResource)]): Task[MutableConfig] =
-    loadp(files).map(MutableConfig("", _))
+  def loadGroups(files: List[(Name, KnobsResource)],
+                 pool: ExecutorService = Resource.notificationPool): Task[MutableConfig] =
+    loadp(files, pool).map(MutableConfig("", _))
 
   private [knobs] def loadFiles(paths: List[KnobsResource]): Task[Loaded] = {
     def go(seen: Loaded, path: KnobsResource): Task[Loaded] = {
@@ -97,15 +101,18 @@ package object knobs {
     Foldable[List].foldLeftM(paths, Map():Loaded)(go)
   }
 
-  private [knobs] def loadp(paths: List[(Name, KnobsResource)]): Task[BaseConfig] = for {
-    loaded <- loadFiles(paths.map(_._2))
-    p <- IORef(paths)
-    m <- flatten(paths, loaded).flatMap(IORef(_))
-    s <- IORef(Map[Pattern, List[ChangeHandler]]())
-    bc = BaseConfig(paths = p, cfgMap = m, subs = s)
-    ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
-    _ <- Task.async[Unit](k => ticks.evalMap(_ => bc.reload).run.runAsync(k))
-  } yield bc
+  private [knobs] def loadp(
+    paths: List[(Name, KnobsResource)],
+    pool: ExecutorService = Resource.notificationPool): Task[BaseConfig] =
+      for {
+        loaded <- loadFiles(paths.map(_._2))
+        p <- IORef(paths)
+        m <- flatten(paths, loaded).flatMap(IORef(_))
+        s <- IORef(Map[Pattern, List[ChangeHandler]]())
+        bc = BaseConfig(paths = p, cfgMap = m, subs = s)
+        ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
+        _ <- Task(ticks.evalMap(_ => bc.reload).run.runAsync(_.fold(_ => (), _ => ())))(pool)
+      } yield bc
 
   private [knobs] def addDot(p: String): String =
     if (p.isEmpty || p.endsWith(".")) p else p + "."
