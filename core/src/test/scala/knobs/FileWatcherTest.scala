@@ -47,6 +47,6 @@ object FileWatcherTests extends Properties("FileWatch") {
       _   <- Task.delay(latch.await)
       r   <- ref.read
     } yield r == "\"bar\""
-    prg.run
+    prg.unsafePerformSync
   }
 }

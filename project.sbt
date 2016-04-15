@@ -1,9 +1,9 @@
 
 organization in Global := "oncue.knobs"
 
-scalaVersion in Global := "2.10.5"
+scalaVersion in Global := "2.11.8"
 
-crossScalaVersions in Global := Seq("2.11.6", "2.10.5")
+crossScalaVersions in Global := Seq("2.11.8", "2.10.5")
 
 scalacOptions in Global := Seq(
   "-deprecation",

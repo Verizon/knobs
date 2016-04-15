@@ -176,7 +176,7 @@ object ZooKeeper {
   def unsafeFromResource(customConfig: List[KnobsResource]): (ResourceBox, Task[Unit]) = unsafe(customConfig)
 
   protected def unsafe(config: List[KnobsResource] = defaultCfg): (ResourceBox, Task[Unit]) = {
-    val (box, c) = doZK(config).run
+    val (box, c) = doZK(config).unsafePerformSync
     (box, Task.delay(c.close))
   }
 
