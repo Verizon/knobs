@@ -111,7 +111,7 @@ package object knobs {
         s <- IORef(Map[Pattern, List[ChangeHandler]]())
         bc = BaseConfig(paths = p, cfgMap = m, subs = s)
         ticks = mergeN(Process.emitAll(loaded.values.map(_._2).toSeq))
-        _ <- Task(ticks.evalMap(_ => bc.reload).run.runAsync(_.fold(_ => (), _ => ())))(pool)
+        _ <- Task(ticks.evalMap(_ => bc.reload).run.unsafePerformAsync(_.fold(_ => (), _ => ())))(pool)
       } yield bc
 
   private [knobs] def addDot(p: String): String =
