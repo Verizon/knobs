@@ -100,6 +100,15 @@ object common {
         "0.7.3a"
       }
     },
-    unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scalaz-stream-${scalazStreamVersion.value.take(3)}"
+    unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scalaz-stream-${scalazStreamVersion.value.take(3)}",
+    artifactName := { (scalaVersion: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+      val classifierStr = artifact.classifier.fold("")("-"+_)
+      val cross = CrossVersion(module.crossVersion, scalaVersion.full, scalaVersion.binary)
+      val base = CrossVersion.applyCross(artifact.name, cross)
+      val suffix =
+        if(scalazStreamVersion.value.startsWith("0.7")) "a"
+        else ""
+      base + "-" + module.revision + suffix + classifierStr + "." + artifact.extension
+    }
   )
 }
