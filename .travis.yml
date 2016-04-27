@@ -24,8 +24,8 @@ env:
     - secure: "QeyrsMX1Egp284zYdklEMN/y0jCYr3BHHD6GxMi2GiXejRzF61gs00CxRrxZ9hG4ejujJuSsZMp4wAjiktVgRhSMCpjsKXsXZcFxagMGGI9eRK4bPc1QcgASo0st3qL/ustb3/sQL3ia7VUv4UPk0cOle1c4XHjZT5q82eCQ2GuDmQ6JrHN70msjnrUpi7tENacA8iwOxlOXnIfcQ5VckRr5PM4jDQLRQdqF7ZpyaL6hLcfpDDvJCq5i5lwQvgB3ZnIPG7Zlb0UTBWnB3CYFcRWPx/gpJi0LLEe4upCGCHqTsAH9q5xdKiF4Cgg0TiTFpJ+MsBVfNEK83ArDodW4rPooKOpOt3Sy4AK3a6LaF/7Tb1MF5kQKEoE0kiCwQpyHqUf8w2VFqn8G6vAjGk+/W5N6s+1RqQzwM/Q70PiX0V28mJMJ0f4yELxRBeUTyGp8Eo/bZa/TXJxP/9khr87ttngMh1HakxRB0t1ayDme/j+1wUWUjBBpJOKXAZYAXq9QqaC2SWyn+5DonRXNaNG9ynzBTXgHxihzsnaFO9XzbmrbZImBLKe45j+TvuIf2tijeVVNlO5cnib+qAhOu/s67bNCI+Nf+mAy1mAfSymyaHa5oLsJKGxs7Q3r9ABhoQkVwEcejxHHcjTqDTIU+lwxqSbdJFs3DHdatAYO5Pn5Pr0="
     - secure: "eZGSdBrIu63s+vCznuqFazn4X9/wW/dLb+BIIEdGJCqTDp8vKos+zGRwQjBCabrYlOBzSzm9DkqA684T7lIIFdZRzUGAZzGBeEzDba65FDA4RZABUyMVAugdKbsVLkIJPnFbGZprCMKTQ45y3dox9sN1UT6jPc9QXCJdM1voo/HLzcVWTcq4Fje0R1taUlVYAYDMAk1BRY0Sh0wX8tnW5Df0lfl7jQsL/VIDKU4fm6fsruHZNKxh8rrkb+1KUsffvWQLAA6lkmNp0LgXhv7MfDqepbExjUc1fhpUP0y9qhbMEkwHaN7wXVonqCMsOQWHaNaPVhe7eIlqIHi2tEXAkhggilLah/ts3cun4iUu9g7Bc+YpQdV9/7WVcysxWWIKrrDBt3H2yO3AZIo9Y/jFOMfDRj/VhGueMkwH19yzAu70rNtjole/o3vyErfyMX2WiTyoQQ6qTC8TnORvasjLg1f2U9TBlfr47JKEicuP/YkaddLOLNUNC0ZsXbqiokixDi3hwLGdWr/WAI9Xeb8EhhK+OGsbIyWnTVim4KN3BA4fvdurzxJcInvU+oilPGxUrQ4cNWVQPZRC5ZRn/YRZqcKmPs5xpyCG7lK5f3EuvyFqjmnbWUcf5dblZ6g0yv/VNncriRCXa4c7zb+BnKdlE7Ig7ZmZiomNmjyuK9lUvk4="
 
-install:
-  - | if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
+install: >
+  if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
   mkdir $HOME/.bintray/
   FILE=$HOME/.bintray/.credentials
   cat <<EOF >$FILE
