@@ -37,6 +37,7 @@ import java.io.File
 case class ZNode(client: CuratorFramework, path: Path)
 
 object ZooKeeper {
+  import compatibility._
 
   private val defaultCfg = List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
     ClassPathResource("oncue/zookeeper.cfg")))
@@ -176,7 +177,7 @@ object ZooKeeper {
   def unsafeFromResource(customConfig: List[KnobsResource]): (ResourceBox, Task[Unit]) = unsafe(customConfig)
 
   protected def unsafe(config: List[KnobsResource] = defaultCfg): (ResourceBox, Task[Unit]) = {
-    val (box, c) = doZK(config).run
+    val (box, c) = doZK(config).unsafePerformSync
     (box, Task.delay(c.close))
   }
 

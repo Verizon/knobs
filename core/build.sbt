@@ -1,4 +1,6 @@
 
+import common.scalazStreamVersion
+
 common.settings
 
 resolvers ++= Seq(
@@ -7,6 +9,6 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.scalaz.stream" %% "scalaz-stream" % "0.7.3a",
-  "oncue.ermine"      %% "ermine-parser" % "0.2.1-2"
+  "org.scalaz.stream" %% "scalaz-stream" % scalazStreamVersion.value,
+  "oncue.ermine"      %% "ermine-parser" % "0.3.0"
 )

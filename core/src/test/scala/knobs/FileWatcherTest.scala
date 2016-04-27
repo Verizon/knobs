@@ -24,6 +24,7 @@ import scala.concurrent.duration._
 import scala.io.Source
 import scalaz.concurrent.Task
 import Resource._
+import compatibility._
 
 object FileWatcherTests extends Properties("FileWatch") {
 
@@ -47,6 +48,6 @@ object FileWatcherTests extends Properties("FileWatch") {
       _   <- Task.delay(latch.await)
       r   <- ref.read
     } yield r == "\"bar\""
-    prg.run
+    prg.unsafePerformSync
   }
 }
