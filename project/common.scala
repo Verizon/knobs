@@ -4,7 +4,6 @@ import sbtrelease._
 import sbtrelease.ReleasePlugin.autoImport._
 import sbtrelease.ReleaseStateTransformations._
 import sbtrelease.Utilities._
-import com.typesafe.sbt.pgp.PgpKeys._
 import bintray.BintrayKeys._
 
 object common {
@@ -31,9 +30,7 @@ object common {
 
   def ignore = Seq(
     publish := (),
-    publishSigned := (),
     publishLocal := (),
-    publishLocalSigned := (),
     publishArtifact in Test := false,
     publishArtifact in Compile := false
   )
@@ -47,7 +44,6 @@ object common {
 
   def releaseSettings = Seq(
     releaseCrossBuild := true,
-    releasePublishArtifactsAction := publishSigned.value,
     releaseVersion := { ver =>
       sys.env.get("TRAVIS_BUILD_NUMBER").orElse(sys.env.get("BUILD_NUMBER"))
         .map(s => try Option(s.toInt) catch { case _: NumberFormatException => Option.empty[Int] })
@@ -93,7 +89,6 @@ object common {
         </developer>
       </developers>),
     publishMavenStyle := true,
-    useGpg := true,
     licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.html")),
     homepage := Some(url("http://oncue.github.io/knobs/")),
     scmInfo := Some(ScmInfo(url("https://github.com/oncue/knobs"),
