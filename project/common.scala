@@ -110,7 +110,7 @@ object common {
       val qualifier =
         if(scalazStreamVersion.value.startsWith("0.7")) "scalaz71"
         else "scalaz72"
-      base + "_" + qualifier + "-" + module.revision + classifierStr + "." + artifact.extension
+      base + "_" + qualifier + "-" + releaseVersion.value(version.value) + classifierStr + "." + artifact.extension
     }
   )
 }
