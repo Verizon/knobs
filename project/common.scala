@@ -48,18 +48,29 @@ object common {
   def releaseSettings = Seq(
     releaseCrossBuild := true,
     releasePublishArtifactsAction := publishSigned.value,
-    releaseProcess := Seq[ReleaseStep](
-      checkSnapshotDependencies,
-      inquireVersions,
-      runTest,
-      setReleaseVersion,
-      commitReleaseVersion,
-      tagRelease,
-      publishArtifacts,
-      setNextVersion,
-      commitNextVersion,
-      pushChanges
-    )
+    releaseVersion := { ver =>
+      sys.env.get("TRAVIS_BUILD_NUMBER").orElse(sys.env.get("BUILD_NUMBER"))
+        .map(s => try Option(s.toInt) catch { case _: NumberFormatException => Option.empty[Int] })
+        .flatMap(ci => Version(ver).map(_.withoutQualifier.copy(bugfix = ci).string))
+        .orElse(Version(ver).map(_.withoutQualifier.string))
+        .getOrElse(versionFormatError)
+    },
+    releaseProcess := Seq(
+      Seq[ReleaseStep](
+        checkSnapshotDependencies,
+        inquireVersions,
+        runTest,
+        setReleaseVersion,
+        commitReleaseVersion,
+        tagRelease,
+        publishArtifacts,
+        setNextVersion,
+        commitNextVersion
+      ),
+      // only job *.1 pushes tags, to avoid each independent job attempting to retag the same release
+      Option(System.getenv("TRAVIS_JOB_NUMBER")) filter { _ endsWith ".1" } map { _ =>
+        pushChanges.copy(check = identity) } toSeq
+    ).flatten
   )
 
   def publishingSettings = Seq(

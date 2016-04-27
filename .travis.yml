@@ -19,4 +19,5 @@ matrix:
       scala: 2.11.8
       env: SCALAZ_STREAM_VERSION=0.7.3a
 
-script: sbt ++$TRAVIS_SCALA_VERSION +test
+script:
+  - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults'; else sbt ++$TRAVIS_SCALA_VERSION test; fi"
