@@ -20,8 +20,10 @@ import org.scalacheck._
 import scalaz.concurrent.Task
 import Prop._
 import scala.concurrent.duration._
+import compatibility._
 
 object Test extends Properties("Knobs") {
+
   def withLoad[A](files: List[KnobsResource])(
     t: MutableConfig => Task[A]): Task[A] = for {
       mb <- load(files)
@@ -104,21 +106,21 @@ object Test extends Properties("Knobs") {
       case _ => false
     }
 
-  property("load-pathological-config") = loadTest.run
+  property("load-pathological-config") = loadTest.unsafePerformSync
 
-  property("interpolation") = interpTest.run
+  property("interpolation") = interpTest.unsafePerformSync
 
-  property("import") = importTest.run
+  property("import") = importTest.unsafePerformSync
 
-  property("load-system-properties") = loadPropertiesTest.run
+  property("load-system-properties") = loadPropertiesTest.unsafePerformSync
 
-  property("load-fallback-chain") = fallbackTest.run
+  property("load-fallback-chain") = fallbackTest.unsafePerformSync
 
-  property("fallback-chain-errors") = fallbackErrorTest.run
+  property("fallback-chain-errors") = fallbackErrorTest.unsafePerformSync
 
-  property("load-uri") = uriTest.run
+  property("load-uri") = uriTest.unsafePerformSync
 
-  property("classloader") = classLoaderTest.run
+  property("classloader") = classLoaderTest.unsafePerformSync
 
 
 }

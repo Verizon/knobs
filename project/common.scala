@@ -13,10 +13,12 @@ object common {
     bintraySettings ++
     releaseSettings ++
     publishingSettings ++
-    testSettings
+    testSettings ++
+    customSettings
 
-  val scalaTestVersion  = SettingKey[String]("scalatest version")
-  val scalaCheckVersion = SettingKey[String]("scalacheck version")
+  val scalaTestVersion    = SettingKey[String]("scalatest version")
+  val scalaCheckVersion   = SettingKey[String]("scalacheck version")
+  val scalazStreamVersion = SettingKey[String]("scalaz stream version")
 
   def testSettings = Seq(
     scalaTestVersion     := "2.2.5",
@@ -87,5 +89,26 @@ object common {
                                 "git@github.com:oncue/knobs.git")),
     pomIncludeRepository := { _ => false },
     publishArtifact in Test := false
+  )
+
+  def customSettings = Seq(
+    // "0.8.1a" "0.7.3a"
+    scalazStreamVersion := {
+      if(sys.env.get("TRAVIS").nonEmpty){
+        sys.env("SCALAZ_STREAM_VERSION")
+      } else {
+        "0.7.3a"
+      }
+    },
+    unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scalaz-stream-${scalazStreamVersion.value.take(3)}",
+    artifactName := { (scalaVersion: ScalaVersion, module: ModuleID, artifact: Artifact) =>
+      val classifierStr = artifact.classifier.fold("")("-"+_)
+      val cross = CrossVersion(module.crossVersion, scalaVersion.full, scalaVersion.binary)
+      val base = CrossVersion.applyCross(artifact.name, cross)
+      val suffix =
+        if(scalazStreamVersion.value.startsWith("0.7")) "a"
+        else ""
+      base + "-" + module.revision + suffix + classifierStr + "." + artifact.extension
+    }
   )
 }

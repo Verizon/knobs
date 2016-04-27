@@ -26,6 +26,7 @@ import org.apache.curator.framework.api._
 import org.apache.curator.framework._
 import org.apache.curator.retry._
 import java.util.concurrent.CountDownLatch
+import compatibility._
 
 object ZooKeeperTests extends Properties("ZooKeeper") {
 
@@ -41,7 +42,7 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     c.start
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
     val n = load(List(ZNode(c, "/knobs.cfg").required)).flatMap(cfg =>
-      cfg.require[Int]("foo")).run
+      cfg.require[Int]("foo")).unsafePerformSync
     c.close
     server.close
     n == 10
@@ -70,7 +71,7 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
       }
       n2 <- ref.read
     } yield n1 == 10 && n2 == 20
-    val r = prg.run
+    val r = prg.unsafePerformSync
     c.close
     server.close
     r

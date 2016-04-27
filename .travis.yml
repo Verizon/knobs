@@ -1,8 +1,22 @@
 language: scala
-scala:
-  - 2.10.5
-  - 2.11.6
-jdk:
-  - oraclejdk8
+
+sudo: required
+
+matrix:
+  include:
+    # scala 2.10
+    - jdk: oraclejdk8
+      scala: 2.10.5
+      env: SCALAZ_STREAM_VERSION=0.7.3a
+    - jdk: oraclejdk8
+      scala: 2.10.5
+      env: SCALAZ_STREAM_VERSION=0.8.1a
+    # scala 2.11
+    - jdk: oraclejdk8
+      scala: 2.11.8
+      env: SCALAZ_STREAM_VERSION=0.8.1a
+    - jdk: oraclejdk8
+      scala: 2.11.8
+      env: SCALAZ_STREAM_VERSION=0.7.3a
 
 script: sbt ++$TRAVIS_SCALA_VERSION +test

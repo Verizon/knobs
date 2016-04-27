@@ -16,3 +16,5 @@ addSbtPlugin("com.typesafe.sbt"  % "sbt-ghpages" % "0.5.3")
 addSbtPlugin("org.tpolecat"      % "tut-plugin"  % "0.4.0")
 addSbtPlugin("com.timushev.sbt"  % "sbt-updates" % "0.1.8")
 addSbtPlugin("com.jsuereth"      % "sbt-pgp"     % "1.0.0")
+
+scalacOptions += "-deprecation"
