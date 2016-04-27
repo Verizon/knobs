@@ -94,21 +94,17 @@ object common {
   def customSettings = Seq(
     // "0.8.1a" "0.7.3a"
     scalazStreamVersion := {
-      if(sys.env.get("TRAVIS").nonEmpty){
-        sys.env("SCALAZ_STREAM_VERSION")
-      } else {
-        "0.7.3a"
-      }
+      sys.env.get("SCALAZ_STREAM_VERSION").getOrElse("0.7.3a")
     },
     unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scalaz-stream-${scalazStreamVersion.value.take(3)}",
     artifactName := { (scalaVersion: ScalaVersion, module: ModuleID, artifact: Artifact) =>
       val classifierStr = artifact.classifier.fold("")("-"+_)
       val cross = CrossVersion(module.crossVersion, scalaVersion.full, scalaVersion.binary)
       val base = CrossVersion.applyCross(artifact.name, cross)
-      val suffix =
-        if(scalazStreamVersion.value.startsWith("0.7")) "a"
-        else ""
-      base + "-" + module.revision + suffix + classifierStr + "." + artifact.extension
+      val qualifier =
+        if(scalazStreamVersion.value.startsWith("0.7")) "scalaz71"
+        else "scalaz72"
+      base + "_" + qualifier + "-" + module.revision + classifierStr + "." + artifact.extension
     }
   )
 }
