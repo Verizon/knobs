@@ -15,9 +15,9 @@ object common {
     testSettings ++
     customSettings
 
-  val scalaTestVersion    = SettingKey[String]("scalatest version")
-  val scalaCheckVersion   = SettingKey[String]("scalacheck version")
-  val scalazStreamVersion = SettingKey[String]("scalaz stream version")
+  val scalaTestVersion    = settingKey[String]("scalatest version")
+  val scalaCheckVersion   = settingKey[String]("scalacheck version")
+  val scalazStreamVersion = settingKey[String]("scalaz stream version")
 
   def testSettings = Seq(
     scalaTestVersion     := "2.2.5",
@@ -42,13 +42,17 @@ object common {
     bintrayPackage := "knobs"
   )
 
+  def withoutSnapshot(ver: Version) =
+    if(ver.qualifier.exists(_ == "-SNAPSHOT")) ver.withoutQualifier
+    else ver.copy(qualifier = ver.qualifier.map(_.replaceAll("-SNAPSHOT", "")))
+
   def releaseSettings = Seq(
     releaseCrossBuild := true,
     releaseVersion := { ver =>
       sys.env.get("TRAVIS_BUILD_NUMBER").orElse(sys.env.get("BUILD_NUMBER"))
         .map(s => try Option(s.toInt) catch { case _: NumberFormatException => Option.empty[Int] })
-        .flatMap(ci => Version(ver).map(_.withoutQualifier.copy(bugfix = ci).string))
-        .orElse(Version(ver).map(_.withoutQualifier.string))
+        .flatMap(ci => Version(ver).map(v => withoutSnapshot(v).copy(bugfix = ci).string))
+        .orElse(Version(ver).map(v => withoutSnapshot(v).string))
         .getOrElse(versionFormatError)
     },
     releaseProcess := Seq(
@@ -103,14 +107,12 @@ object common {
       sys.env.get("SCALAZ_STREAM_VERSION").getOrElse("0.7.3a")
     },
     unmanagedSourceDirectories in Compile += (sourceDirectory in Compile).value / s"scalaz-stream-${scalazStreamVersion.value.take(3)}",
-    artifactName := { (scalaVersion: ScalaVersion, module: ModuleID, artifact: Artifact) =>
-      val classifierStr = artifact.classifier.fold("")("-"+_)
-      val cross = CrossVersion(module.crossVersion, scalaVersion.full, scalaVersion.binary)
-      val base = CrossVersion.applyCross(artifact.name, cross)
-      val qualifier =
-        if(scalazStreamVersion.value.startsWith("0.7")) "scalaz71"
-        else "scalaz72"
-      base + "_" + qualifier + "-" + releaseVersion.value(version.value) + classifierStr + "." + artifact.extension
+    version := {
+      val suffix = if(scalazStreamVersion.value.startsWith("0.7")) "" else "a"
+      val versionValue = version.value
+      if(versionValue.endsWith("-SNAPSHOT"))
+        versionValue.replaceAll("-SNAPSHOT", s"$suffix-SNAPSHOT")
+      else s"$versionValue$suffix"
     }
   )
 }
