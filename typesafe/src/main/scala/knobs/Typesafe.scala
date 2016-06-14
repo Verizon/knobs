@@ -22,61 +22,65 @@ import scalaz.concurrent.Task
 
 object Typesafe {
   def config: Task[Config] = Task {
-    def convertList(list: ConfigList): CfgList = {
-      def unwrap[T](c: ConfigValue)(implicit ev: ClassTag[T]): T =
-        c.unwrapped match {
-          case t: T => t
+    val cfg = ConfigFactory.load
+    Config(convertTypesafeConfig(cfg))
+  }
+
+  def config(cfg: TC): Task[Config] = Task {
+    Config(convertTypesafeConfig(cfg))
+  }
+
+  private def convertList(list: ConfigList): CfgList = {
+    def unwrap[T](c: ConfigValue)(implicit ev: ClassTag[T]): T =
+      c.unwrapped match {
+        case t: T => t
+        case _ =>
+          sys.error(s"Can't convert $c to underlying type ${ev.runtimeClass.getName}")
+      }
+
+    val items: List[CfgValue] =
+      list.toList.flatMap { v =>
+        v.valueType match {
+          case ConfigValueType.NULL => None
+          case ConfigValueType.BOOLEAN =>
+            Some(CfgBool(unwrap[Boolean](v)))
+          case ConfigValueType.LIST =>
+            Some(convertList(unwrap[ConfigList](v)))
+          case ConfigValueType.NUMBER =>
+            Some(CfgNumber(unwrap[Number](v).doubleValue))
+          case ConfigValueType.STRING =>
+            Some(CfgText(unwrap[String](v)))
+          case x =>
+            sys.error(s"Can't convert $v to a CfgValue")
+        }
+      }
+
+    CfgList(items)
+  }
+
+  private def convertTypesafeConfig(cfg: TC) = {
+    cfg.entrySet.foldLeft(Config.empty.env) {
+      case (m, entry) => {
+        val (k, v) = (entry.getKey, entry.getValue)
+        v.valueType match {
+          case ConfigValueType.OBJECT => m
+          case ConfigValueType.NULL => m
           case _ =>
-            sys.error(s"Can't convert $c to underlying type ${ev.runtimeClass.getName}")
-        }
-
-      val items: List[CfgValue] =
-        list.toList.flatMap { v =>
-          v.valueType match {
-            case ConfigValueType.NULL => None
-            case ConfigValueType.BOOLEAN =>
-              Some(CfgBool(unwrap[Boolean](v)))
-            case ConfigValueType.LIST =>
-              Some(convertList(unwrap[ConfigList](v)))
-            case ConfigValueType.NUMBER =>
-              Some(CfgNumber(unwrap[Number](v).doubleValue))
-            case ConfigValueType.STRING =>
-              Some(CfgText(unwrap[String](v)))
-            case x =>
-              sys.error(s"Can't convert $v to a CfgValue")
-          }
-        }
-
-      CfgList(items)
-    }
-
-    def convertTypesafeConfig(cfg: TC) = {
-      cfg.entrySet.foldLeft(Config.empty.env) {
-        case (m, entry) => {
-          val (k, v) = (entry.getKey, entry.getValue)
-          v.valueType match {
-            case ConfigValueType.OBJECT => m
-            case ConfigValueType.NULL => m
-            case _ =>
-              def convert(v: ConfigValue): CfgValue = v.valueType match {
-                case ConfigValueType.BOOLEAN =>
-                  CfgBool(cfg.getBoolean(k))
-                case ConfigValueType.LIST =>
-                  convertList(cfg.getList(k))
-                case ConfigValueType.NUMBER =>
-                  CfgNumber(cfg.getNumber(k).doubleValue)
-                case ConfigValueType.STRING =>
-                  CfgText(cfg.getString(k))
-                case x => sys.error(s"Can't convert $v to a CfgValue")
-              }
-              m + (k -> convert(v))
-          }
+            def convert(v: ConfigValue): CfgValue = v.valueType match {
+              case ConfigValueType.BOOLEAN =>
+                CfgBool(cfg.getBoolean(k))
+              case ConfigValueType.LIST =>
+                convertList(cfg.getList(k))
+              case ConfigValueType.NUMBER =>
+                CfgNumber(cfg.getNumber(k).doubleValue)
+              case ConfigValueType.STRING =>
+                CfgText(cfg.getString(k))
+              case x => sys.error(s"Can't convert $v to a CfgValue")
+            }
+            m + (k -> convert(v))
         }
       }
     }
-
-    val cfg = ConfigFactory.load
-    Config(convertTypesafeConfig(cfg))
   }
 }
 
