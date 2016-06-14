@@ -1,4 +1,6 @@
 
+common.settings
+
 organization in Global := "oncue.knobs"
 
 scalaVersion in Global := "2.10.5"
@@ -32,8 +34,6 @@ lazy val typesafe = project.dependsOn(core)
 lazy val zookeeper = project.dependsOn(core)
 
 lazy val docs = project.dependsOn(core, zookeeper)
-
-releaseCrossBuild := false
 
 publishArtifact in (Compile, packageBin) := false
 
