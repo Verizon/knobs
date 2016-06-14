@@ -63,9 +63,7 @@ object common {
         setReleaseVersion,
         commitReleaseVersion,
         tagRelease,
-        publishArtifacts,
-        setNextVersion,
-        commitNextVersion
+        publishArtifacts
       ),
       // only job *.1 pushes tags, to avoid each independent job attempting to retag the same release
       Option(System.getenv("TRAVIS_JOB_NUMBER")) filter { _ endsWith ".1" } map { _ =>
