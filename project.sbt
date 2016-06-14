@@ -33,7 +33,7 @@ lazy val zookeeper = project.dependsOn(core)
 
 lazy val docs = project.dependsOn(core, zookeeper)
 
-releaseCrossBuild := true
+releaseCrossBuild := false
 
 publishArtifact in (Compile, packageBin) := false
 
