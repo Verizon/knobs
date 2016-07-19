@@ -251,7 +251,7 @@ You can subscribe to notifications of changes to the configuration with the `sub
 ```tut
 val cfg: Task[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
 
-cfg.flatMap(_.subscribe (Pattern("somePrefix.*"), {
+cfg.flatMap(_.subscribe (Prefix("somePrefix.*"), {
   case (n, None) => Task { println(s"The parameter $n was removed") }
   case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
 }))
