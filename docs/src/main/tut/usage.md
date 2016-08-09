@@ -24,6 +24,12 @@ You will probably need to add a resolver entry so SBT can find the jar:
 
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
+If you get an unresolved `scalaz-stream` dependency, you will need to also add the following resolver to SBT:
+
+````
+resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
+````
+
 <a name="resources"></a>
 
 # Configuration Resources
