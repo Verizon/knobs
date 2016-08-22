@@ -21,7 +21,9 @@ sudo: required
 
 env:
   global:
+    # BINTRAY_USER
     - secure: "Vjjrs8GpRYkCTRlR68OoGWD5L8LAZARasL4qZnWCYlVXU5Yc50pPwAnsjQR3+QBAFV1+YEEGdTSkhdxzvJgL9tbdnP+jSQ8JdFk/tvEbhM4EgjJemyVnTPYHFX1UfvvJIaGXEpMwGdjTGHZeqQBqdLL0cboc0Q/LrTAs3fBa7sk="
+    # BINTRAY_TOKEN
     - secure: "CvT0GG1yLWMC8y9Wd/LG5Ww7xXJfOaQDxIJAw8Cg+lzJzaHz3AlGkW4KlOswVJEcfNplUx1YJK2u6GDoAFLgdi/m4/D6b+WkJeAD0C2gj3s31WiCgcpqEhK5iSHj8219p1DU2gTmqd4o7iOw76vvUvj3vxd79I1ikZXikzjLcfc="
 
 install:
