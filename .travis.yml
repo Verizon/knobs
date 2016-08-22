@@ -25,7 +25,7 @@ env:
 
 install:
   - mkdir $HOME/.bintray/
-  - echo $FOO
+  - echo $SOMEVAR
   - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then echo $BINTRAY_CREDENTIALS | base64 --decode > $HOME/.bintray/.credentials; fi"
   # - cat $HOME/.bintray/.credentials
 
@@ -36,7 +36,7 @@ before_script:
   - git checkout -qf $TRAVIS_BRANCH
 
 script:
-  - echo "Hello"
+  - echo "Hello $SOMEVAR"
   # - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults'; else sbt ++$TRAVIS_SCALA_VERSION test; fi"
 
 after_success:
