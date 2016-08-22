@@ -21,13 +21,13 @@ sudo: required
 
 env:
   global:
-    - secure: "YrtaO+wGrbWIiiZNjAZsKIKxUyG5eeF5e7TLc7CgkUeSbHrdYwUr3K8mEkkBMP9R+sffqBoyg5f4pfv84BxSdg2ZB9tp7TZ6uKJJkaT7XLY8r7crltrn9EFh0eUqmQzSQ1I3H6ULo/ncMNuVJH+Ha1sWz/80xzGuNuBJ+1SpbxP/q5fQRdP6Afr3jXfPhjQtFyyq+BOfW/7IvgvNclR9xFh/GOI0tnqvikQOIpyPxqgxXPa2urbWXqud2iQ6ekw4ny4U46OMQBPLdmLp482ULk8cxibeEHgaVTCASTbuxd5h46PGSOMGXj97x+rAxfP5lUKUacuxdmfjiH0wiIKvxJNECOk9ZnxuLX/85ARLZ+NCqumI6jD9kyt3shty7YT3wZA/y3xR7TouJ70hy/zHGepZ+b9fGCYxrlbmox4WKNuVTkPkMD/4+4kEbxDSSnpgSVbpWF+1xl42N7Cwmc8pjPmYOvrv3wSvI8GKBwgIZ/CWSeLfSrWup1olfV5MJiR0ZYLrhXM+i/Frb0CBz8Ji3ckhg2e5zaYh61xkqkJBXi0Gp8IRkuGiIpTN7O+wRSy8lBEkBAHLO65EyxhvJTpcII30VHKPR1+/JDxOHCPHWXr5qlX570KEBxO4+QycuhLJjNdZS68oglij35LB8kx13mblIF0Xp2YXOreQkqEmQXQ="
+    - secure: "T1lDe3ZmMqkKUAvRPHMIrDYMYuWKWWP/YWONZWPLkazqHk6z62cw6598yIjY9bi4uJ5Cj0SiRoq9MGJXgJqEcZTcX2vtbfVyUaL9QA7uXy8SetvLhgw/J/fgohKwtjc7WOHsTnzdxuMhNVxCTke+RcnApOfYqSBLCRkMPgkk4q+h9wxph0njZtHt7nezQFO19hXRR9O1VZ1tYkj+sInXtkG/tVUQsq6ZksjD5fceoF6T8Cl0B2YQ9BUecgAzmGYhUVfYT/vho2t0kX33Rni0anxWkbGOtoItoA1HKsMLKdvHaqs+l/zvFualbm7ZW5nerSMjvvxBpETnjSB5WBC2hn4MCwyOa3+muhhvQ2U9YxZQZHY7x5lZZGiM44BKwRm2q0wWNDhcYtL5hugcXDyCuO3O+7xtnZyQWVfUzuR35bM2ue8rXffSthLzyN0gQsuESWzevLHa2TkL2OpRzcqgE0v4KoyBRd+S4js7VhDPl3IFpDG8lKb8FT2qamZyxHi2Aqc3GrpMy2BJYOKNMaU3RVtcSoiExqq4DZ2F+YwU2P3BsJ6BQu7egxjPD/ufy+cygB9hVb4wYDzKDG3pG9cFKdatfkkxAWmXAXDOHiPh7mp9u1mjrHVpv5ARtQj4Jwd1pUsDHi8ss3e7c/M2d6avs0f9Yutl7T74X2MsSMU/NYY="
 
 install:
   - mkdir $HOME/.bintray/
-  - echo $BINTRAY_CREDENTIALS
+  - echo $FOO
   - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then echo $BINTRAY_CREDENTIALS | base64 --decode > $HOME/.bintray/.credentials; fi"
-  - cat $HOME/.bintray/.credentials
+  # - cat $HOME/.bintray/.credentials
 
 before_script:
   - git config --global user.email "oss@travis-ci.org"
