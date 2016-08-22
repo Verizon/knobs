@@ -33,7 +33,6 @@ install:
       echo user = ${BINTRAY_USER} >> $HOME/.bintray/.credentials
       echo password = ${BINTRAY_TOKEN} >> $HOME/.bintray/.credentials
     fi
-  - cat $HOME/.bintray/.credentials
 
 before_script:
   - git config --global user.email "oss@travis-ci.org"
