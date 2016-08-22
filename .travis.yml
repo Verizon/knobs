@@ -21,12 +21,19 @@ sudo: required
 
 env:
   global:
-    - secure: "Ibl4y1s8LZ/WWLlBIKWisYVlwrW3wVJgWH99RxlX39KA8KmvL+BVHFIibxitEU/aIvnMEmG0iwcDbIxOmZIn2w+9Zm+auCZk8B7fpSrPqFxSPxcxbm8Voee4PmvsI0UWcCDaE2xLlOuP+DTrKDr3/cdNC8RHMUgG503IOk/CJck="
+    - secure: "Vjjrs8GpRYkCTRlR68OoGWD5L8LAZARasL4qZnWCYlVXU5Yc50pPwAnsjQR3+QBAFV1+YEEGdTSkhdxzvJgL9tbdnP+jSQ8JdFk/tvEbhM4EgjJemyVnTPYHFX1UfvvJIaGXEpMwGdjTGHZeqQBqdLL0cboc0Q/LrTAs3fBa7sk="
+    - secure: "CvT0GG1yLWMC8y9Wd/LG5Ww7xXJfOaQDxIJAw8Cg+lzJzaHz3AlGkW4KlOswVJEcfNplUx1YJK2u6GDoAFLgdi/m4/D6b+WkJeAD0C2gj3s31WiCgcpqEhK5iSHj8219p1DU2gTmqd4o7iOw76vvUvj3vxd79I1ikZXikzjLcfc="
 
 install:
   - mkdir $HOME/.bintray/
-  - echo $SOMEVAR
-  - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then echo $BINTRAY_CREDENTIALS | base64 --decode > $HOME/.bintray/.credentials; fi"
+  - echo user = $BINTRAY_USER
+  - >
+    if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
+      echo realm = Bintray API Realm > $HOME/.bintray/.credentials
+      echo host = api.bintray.com >> $HOME/.bintray/.credentials
+      echo user = ${BINTRAY_USER} >> $HOME/.bintray/.credentials
+      echo password = ${BINTRAY_TOKEN} >> $HOME/.bintray/.credentials
+    fi
   # - cat $HOME/.bintray/.credentials
 
 before_script:
