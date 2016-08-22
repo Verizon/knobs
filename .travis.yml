@@ -6,16 +6,16 @@ matrix:
     - jdk: oraclejdk8
       scala: 2.10.5
       env: SCALAZ_STREAM_VERSION=0.7.3a
-    - jdk: oraclejdk8
-      scala: 2.10.5
-      env: SCALAZ_STREAM_VERSION=0.8.1a
-    # scala 2.11
-    - jdk: oraclejdk8
-      scala: 2.11.8
-      env: SCALAZ_STREAM_VERSION=0.8.1a
-    - jdk: oraclejdk8
-      scala: 2.11.8
-      env: SCALAZ_STREAM_VERSION=0.7.3a
+    # - jdk: oraclejdk8
+    #   scala: 2.10.5
+    #   env: SCALAZ_STREAM_VERSION=0.8.1a
+    # # scala 2.11
+    # - jdk: oraclejdk8
+    #   scala: 2.11.8
+    #   env: SCALAZ_STREAM_VERSION=0.8.1a
+    # - jdk: oraclejdk8
+    #   scala: 2.11.8
+    #   env: SCALAZ_STREAM_VERSION=0.7.3a
 
 sudo: required
 
@@ -25,6 +25,7 @@ env:
 
 install:
   - mkdir $HOME/.bintray/
+  - echo $BINTRAY_CREDENTIALS
   - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then echo $BINTRAY_CREDENTIALS | base64 --decode > $HOME/.bintray/.credentials; fi"
 
 before_script:
