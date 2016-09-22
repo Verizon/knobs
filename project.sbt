@@ -1,29 +1,9 @@
 
-common.settings
-
-organization in Global := "oncue.knobs"
-
-scalaVersion in Global := "2.10.5"
+organization in Global := "io.verizon.knobs"
 
 crossScalaVersions in Global := Seq("2.11.6", "2.10.5")
 
-scalacOptions in Global := Seq(
-  "-deprecation",
-  "-feature",
-  "-encoding", "utf8",
-  "-language:postfixOps",
-  "-language:higherKinds",
-  "-language:implicitConversions",
-  "-unchecked",
-  "-Xcheckinit",
-  "-Xfuture",
-  "-Xlint",
-  "-Xfatal-warnings",
-  "-Yno-adapted-args",
-  "-Ywarn-dead-code",
-  "-Ywarn-value-discard")
-
-licenses in Global += ("Apache-2.0", url("https://www.apache.org/licenses/LICENSE-2.0.html"))
+scalaVersion in Global := crossScalaVersions.value.head
 
 lazy val knobs = project.in(file(".")).aggregate(core, typesafe, zookeeper, docs)
 
@@ -35,8 +15,4 @@ lazy val zookeeper = project.dependsOn(core)
 
 lazy val docs = project.dependsOn(core, zookeeper)
 
-publishArtifact in (Compile, packageBin) := false
-
-publish := ()
-
-publishLocal := ()
+enablePlugins(DisablePublishingPlugin)
