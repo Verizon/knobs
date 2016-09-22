@@ -17,39 +17,24 @@ matrix:
       scala: 2.11.8
       env: SCALAZ_STREAM_VERSION=0.7.3a
 
-sudo: required
-
 branches:
   only:
-    - master
-
-env:
-  global:
-    # BINTRAY_USER
-    - secure: "Vjjrs8GpRYkCTRlR68OoGWD5L8LAZARasL4qZnWCYlVXU5Yc50pPwAnsjQR3+QBAFV1+YEEGdTSkhdxzvJgL9tbdnP+jSQ8JdFk/tvEbhM4EgjJemyVnTPYHFX1UfvvJIaGXEpMwGdjTGHZeqQBqdLL0cboc0Q/LrTAs3fBa7sk="
-    # BINTRAY_TOKEN
-    - secure: "CvT0GG1yLWMC8y9Wd/LG5Ww7xXJfOaQDxIJAw8Cg+lzJzaHz3AlGkW4KlOswVJEcfNplUx1YJK2u6GDoAFLgdi/m4/D6b+WkJeAD0C2gj3s31WiCgcpqEhK5iSHj8219p1DU2gTmqd4o7iOw76vvUvj3vxd79I1ikZXikzjLcfc="
-
-install:
-  - mkdir $HOME/.bintray/
-  - >
-    if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
-      echo realm = Bintray API Realm > $HOME/.bintray/.credentials
-      echo host = api.bintray.com >> $HOME/.bintray/.credentials
-      echo user = ${BINTRAY_USER} >> $HOME/.bintray/.credentials
-      echo password = ${BINTRAY_TOKEN} >> $HOME/.bintray/.credentials
-    fi
+  - master
 
 before_script:
-  - git config --global user.email "oss@travis-ci.org"
-  - git config --global user.name "travis-ci"
-  - git fetch -q --unshallow
-  - git checkout -qf $TRAVIS_BRANCH
+  - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then git checkout -qf $TRAVIS_BRANCH; fi"
 
 script:
-  - "if [ $TRAVIS_PULL_REQUEST = 'false' ]; then sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults'; else sbt ++$TRAVIS_SCALA_VERSION test; fi"
-
-after_success:
+  - |
+    if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
+      if [ $RELEASE_ON_PUSH = 'false' ]; then
+        sbt test coverageReport
+      else
+        sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults'
+      fi
+    else
+      sbt test coverageReport
+    fi
   - find $HOME/.sbt -name "*.lock" | xargs rm
   - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
 
@@ -57,3 +42,14 @@ cache:
   directories:
     - $HOME/.ivy2/cache
     - $HOME/.sbt/boot/scala-$TRAVIS_SCALA_VERSION
+
+after_success:
+  - find $HOME/.sbt -name "*.lock" | xargs rm
+  - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
+  - "bash <(curl -s https://codecov.io/bash) -r $TRAVIS_REPO_SLUG -t $CODECOV_TOKEN"
+
+env:
+  global:
+    - secure: "emCycBlDj0nwdK/SI4q/38WGlZS1tvttZbgzb38KegPUIOv6hr78L73t/2pb8FT/AHPdhYF4q6q8AXxAJi3QoiznMSAT1xyxZZ+wWrWqPuphhkqMSEdzcG8fbi3YGkB0sl+7ZLsveUg/JmG6j6NFjzWjRjb6Rn9MUWKGWDs5a8g="
+    - secure: "RKDMtxH135S+urp/t92qAwe1L0oGDuheKSXBcjwU55v2OS1NX4GPzE64y9hCuYK43BkXB1Xv/mMnF55TYSjHHpnP4BUXW0/SIERrwM+JFQ1TiukocMNiRUZ0jzZ6sUl7wpwhDntXR//jb/6+gCxC7hdlYUQgQ6qjCQffBZT0RzY="
+    - secure: "lqLNd52nASivxq6IFYsq7UIBbH2eHVcvqSbOGFkzDsWscBoeWl5BvM1uOGFRoU3kJB3L23tK3Dq8rfIMXUh6ghPQpMlLKNtQ1XiTIm0s5MqY4JqmRbSLb6eexof/sUE6CgtwTlYp6LTQzT0NLdlBsvyySq5EkfJqeMVH0K7uu5Y="
