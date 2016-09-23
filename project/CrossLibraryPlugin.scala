@@ -5,7 +5,7 @@ import sbt._, Keys._
 object CrossLibraryPlugin extends AutoPlugin {
 
   object autoImport {
-    val scalazStreamVersion = settingKey[String]("scalaz stream version")
+    val scalazStreamVersion = settingKey[String]("scalaz-stream version")
   }
 
   import autoImport._
