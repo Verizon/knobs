@@ -28,12 +28,12 @@ script:
   - |
     if [ $TRAVIS_PULL_REQUEST = 'false' ]; then
       if [ $RELEASE_ON_PUSH = 'false' ]; then
-        sbt test coverageReport
+        sbt ++$TRAVIS_SCALA_VERSION test coverageReport
       else
         sbt ++$TRAVIS_SCALA_VERSION 'release with-defaults'
       fi
     else
-      sbt test coverageReport
+      sbt ++$TRAVIS_SCALA_VERSION test coverageReport
     fi
   - find $HOME/.sbt -name "*.lock" | xargs rm
   - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
