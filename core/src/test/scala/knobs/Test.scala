@@ -24,6 +24,11 @@ import compatibility._
 
 object Test extends Properties("Knobs") {
 
+  // TODO remove when available in Scalacheck
+  // https://github.com/rickynils/scalacheck/pull/284
+  private implicit val arbFiniteDuration: Arbitrary[FiniteDuration] = Arbitrary(
+    Gen.chooseNum(Long.MinValue + 1, Long.MaxValue).map(Duration.fromNanos))
+
   def withLoad[A](files: List[KnobsResource])(
     t: MutableConfig => Task[A]): Task[A] = for {
       mb <- load(files)
@@ -41,6 +46,7 @@ object Test extends Properties("Knobs") {
       af <- cfg.lookup[(Int, Int)]("af")
       db <- cfg.lookup[Boolean]("ag.q-e.i_u9.a")
       du <- cfg.lookup[Duration]("dur")
+      fdu <- cfg.lookup[FiniteDuration]("dur")
   } yield (aa == Some(1)) :| "int property" &&
           (ab == Some("foo")) :| "string property" &&
           (acx == Some(1)) :| "nested int" &&
@@ -49,7 +55,9 @@ object Test extends Properties("Knobs") {
           (ae == Some(1)) :| "simple int 2" &&
           (af == Some((2, 3))) :| "list property" &&
           (db == Some(false)) :| "deep bool" &&
-          (du == Some(5.seconds)) :| "duration property"
+          (du == Some(5.seconds)) :| "duration property" &&
+          (fdu == Some(5.seconds)) :| "finite duration property"
+
   }
 
   lazy val interpTest: Task[Prop] =
@@ -122,5 +130,16 @@ object Test extends Properties("Knobs") {
 
   property("classloader") = classLoaderTest.unsafePerformSync
 
+  property("inifinite duration as finite") = {
+    val g = Gen.oneOf(Duration.Inf, Duration.MinusInf, Duration.Undefined)
+    forAll(g){ d =>
+      Configured[FiniteDuration].apply(CfgDuration(d)) == None
+    }
+  }
+
+  property("finite duration matches duration") = forAll { d: FiniteDuration =>
+    val cfg = CfgDuration(d)
+    (Configured[FiniteDuration].apply(cfg): Option[Duration]) ?= Configured[Duration].apply(cfg)
+  }
 
 }
