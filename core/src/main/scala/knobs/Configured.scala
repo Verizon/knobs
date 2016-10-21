@@ -21,7 +21,7 @@ import scalaz.syntax.applicative._
 import scalaz.std.list._
 import scalaz.std.option._
 import scalaz.{Monad,\/}
-import concurrent.duration.Duration
+import concurrent.duration.{Duration, FiniteDuration}
 
 /**
  * The class of types that can be automatically and safely
@@ -52,6 +52,12 @@ object Configured {
     def apply(a: CfgValue) = a match {
       case CfgDuration(b) => Some(b)
       case _ => None
+    }
+  }
+
+  implicit val configuredFiniteDuration: Configured[FiniteDuration] = new Configured[FiniteDuration]{
+    def apply(a: CfgValue) = configuredDuration(a) collect {
+      case d: FiniteDuration => d
     }
   }
 
