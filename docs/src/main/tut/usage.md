@@ -11,16 +11,10 @@ section: "usage"
 First you need to add the dependency for Knobs to your `build.scala` or your `build.sbt` file:
 
 ````
-libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
+libraryDependencies += "io.verizon.knobs" %% "core" % "x.x.+"
 ````
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
-
-You will probably need to add a resolver entry so SBT can find the jar:
-
-````
-  resolvers += "Oncue Bintray Repo" at "http://dl.bintray.com/oncue/releases"
-````
+Where `x.x` is the desired Knobs version. (Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).)
 
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
