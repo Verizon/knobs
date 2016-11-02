@@ -21,6 +21,7 @@ import scalaz.concurrent.Task
 import Prop._
 import scala.concurrent.duration._
 import compatibility._
+import scalaz.\/
 
 object Test extends Properties("Knobs") {
 
@@ -124,6 +125,37 @@ object Test extends Properties("Knobs") {
       case _ => false
     }
 
+  lazy val immutableConfigValueErrorTest: Task[Prop] = {
+    sys.props += ("test.immutable.value.error" -> "12345")
+    withLoad(List(Required(SysPropsResource(Prefix("test.immutable"))))) {
+      mcfg => mcfg.immutable.map(
+        cfg => \/.fromTryCatchNonFatal(cfg.require[String]("test.immutable.value.error")).fold(
+          {
+            case ValueError(n, v) => true
+            case _ => false
+          },
+          _ => false
+        )
+      )
+    }
+  }
+
+  lazy val mutableConfigValueErrorTest: Task[Prop] = {
+    sys.props += ("test.mutable.value.error" -> "12345")
+    withLoad(List(Required(SysPropsResource(Prefix("test.mutable"))))) { cfg =>
+      cfg.require[String]("test.mutable.value.error").attempt.map(
+        _.fold(
+          {
+            case ValueError(n, v) => true
+            case _ => false
+          },
+          _ => false
+        )
+      )
+    }
+  }
+
+
   property("load-pathological-config") = loadTest.unsafePerformSync
 
   property("interpolation") = interpTest.unsafePerformSync
@@ -155,5 +187,9 @@ object Test extends Properties("Knobs") {
     val cfg = CfgDuration(d)
     (Configured[FiniteDuration].apply(cfg): Option[Duration]) ?= Configured[Duration].apply(cfg)
   }
+
+  property("immutable-config-value-error") = immutableConfigValueErrorTest.unsafePerformSync
+
+  property("mutable-config-value-error") = mutableConfigValueErrorTest.unsafePerformSync
 
 }

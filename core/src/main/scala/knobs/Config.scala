@@ -36,7 +36,7 @@ case class Config(env: Env) {
 
   /** Look up the value under the key with the given name and error if it doesn't exist */
   def require[A:Configured](name: Name): A =
-    lookup(name).getOrElse(throw KeyError(name))
+    lookup(name).getOrElse(env.get(name).fold(throw KeyError(name))(v => throw ValueError(name, v)))
 }
 
 object Config {
