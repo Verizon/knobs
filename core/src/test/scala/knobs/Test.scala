@@ -79,6 +79,16 @@ object Test extends Properties("Knobs") {
       cfg.lookup[String]("path.separator").map(_.isDefined)
     }
 
+  lazy val propertiesSubconfigTest: Task[Prop] =
+    withLoad(List(Required(SysPropsResource(Prefix("user"))))) { cfg =>
+      cfg.subconfig("user").lookup[String]("name").map(_.isDefined)
+    }
+
+  lazy val propertiesNegativeTest: Task[Prop] =
+    withLoad(List(Required(SysPropsResource(Prefix("user"))))) { cfg =>
+      cfg.lookup[String]("path.separator").map(_.isEmpty)
+    }
+
   lazy val fallbackTest: Task[Prop] =
     withLoad(List(Required(
       ClassPathResource("foobar.cfg") or
@@ -121,6 +131,10 @@ object Test extends Properties("Knobs") {
   property("import") = importTest.unsafePerformSync
 
   property("load-system-properties") = loadPropertiesTest.unsafePerformSync
+
+  property("system-properties-negative") = propertiesNegativeTest.unsafePerformSync
+
+  property("system-properties-subconfig") = propertiesSubconfigTest.unsafePerformSync
 
   property("load-fallback-chain") = fallbackTest.unsafePerformSync
 

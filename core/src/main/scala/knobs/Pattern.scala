@@ -16,6 +16,9 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
+import scalaz.std.string._
+import scalaz.syntax.equal._
+
 /**
   * A pattern that matches a `Name` either exactly or as a prefix.
   */
@@ -25,8 +28,8 @@ sealed trait Pattern {
     case Prefix(s) => Prefix(pfx ++ s)
   }
   final def matches(n: Name): Boolean = this match {
-    case Exact(s) => s == n
-    case Prefix(s) => n startsWith n
+    case Exact(s) => s === n
+    case Prefix(s) => n startsWith s
   }
 }
 
