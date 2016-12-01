@@ -6,7 +6,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= {
   val ermineVersion =
-    if(scalazStreamVersion.value.startsWith("0.8")) "0.3.3a"
+    if(scalazStreamVersion.value.startsWith("0.7")) "0.3.3a"
     else "0.3.3"
 
   Seq(
