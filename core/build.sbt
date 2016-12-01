@@ -6,11 +6,11 @@ resolvers ++= Seq(
 
 libraryDependencies ++= {
   val ermineVersion =
-    if(scalazStreamVersion.value.startsWith("0.7")) "0.2.1-2"
-    else "0.3.0"
+    if(scalazStreamVersion.value.startsWith("0.7")) "0.3.3a"
+    else "0.3.3"
 
   Seq(
     "org.scalaz.stream" %% "scalaz-stream" % scalazStreamVersion.value,
-    "oncue.ermine"      %% "ermine-parser" % ermineVersion
+    "io.verizon.ermine" %% "parser" % ermineVersion
   )
 }
