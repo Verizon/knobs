@@ -1,7 +1,6 @@
-
 organization in Global := "io.verizon.knobs"
 
-crossScalaVersions in Global := Seq("2.11.6", "2.10.5")
+crossScalaVersions in Global := Seq("2.12.1", "2.11.6", "2.10.5")
 
 scalaVersion in Global := crossScalaVersions.value.head
 
