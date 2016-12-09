@@ -1,12 +1,7 @@
-resolvers ++= Seq(
-  "scalaz.bintray" at "http://dl.bintray.com/scalaz/releases",
-  "oncue.bintray" at "http://dl.bintray.com/oncue/releases"
-)
-
 libraryDependencies ++= {
   val ermineVersion =
-    if(List("0.7", "0.8").find(prefix => scalazStreamVersion.value.startsWith(prefix)).isDefined) "0.3.4a"
-    else "0.3.4"
+    if(scalazStreamVersion.value.startsWith("0.7")) "0.3.5a"
+    else "0.3.5"
 
   Seq(
     "org.scalaz.stream" %% "scalaz-stream" % scalazStreamVersion.value,
