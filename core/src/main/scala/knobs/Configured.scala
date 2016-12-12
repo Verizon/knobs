@@ -33,7 +33,9 @@ trait Configured[A] {
 }
 
 object Configured {
-  def apply[A:Configured]: Configured[A] = implicitly[Configured[A]]
+
+  // second parameter (of any non-Unit) is required to get around SAM-derived ambiguities
+  def apply[A](implicit A: Configured[A], T: Trivial): Configured[A] = A
 
   def apply[A](f: CfgValue => Option[A]): Configured[A] = new Configured[A] {
     def apply(v: CfgValue) = f(v)
