@@ -50,7 +50,7 @@ object Config {
         case Group(name, gds) => go(pfx + name + ".", m, gds)
         case x => sys.error(s"Unexpected directive: $x")
       })
-    runParser(sansImport, s) match {
+    runParser(topLevel(withImport = false), s) match {
       case Left(e) => left(ParseException(e.message.toString))
       case Right((_, ds)) => right(Config(go("", empty.env, ds)))
     }

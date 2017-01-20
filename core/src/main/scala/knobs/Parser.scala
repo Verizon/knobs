@@ -38,22 +38,22 @@ object ConfigParser {
   }
 
   /** Top-level parser of configuration files */
-  lazy val topLevel: Parser[List[Directive]] = "configuration" |: {
-    directives << skipLWS << realEOF
+  lazy val topLevel: Parser[List[Directive]] = topLevel(withImport = true)
+
+  /** Top-level parser of configuration files
+    * @param withImport Whether or not to parse an import directive
+    */
+  def topLevel(withImport: Boolean): Parser[List[Directive]] = "configuration" |: {
+    directives(withImport) << skipLWS << realEOF
   }
 
-  /** Parser of configuration files that don't support import directives */
-  lazy val sansImport: Parser[List[Directive]] = {
-    val d = (skipLWS >> choice(bindDirective, groupDirective) << skipHWS)
-    d.map2(attempt(newline >> d).many)(_ :: _)
+  def directives(withImport: Boolean): Parser[List[Directive]] =
+    skipLWS >> (attempt(directive(withImport)).map2(attempt(skipLWS >> directive(withImport)).many)(_ :: _) orElse Nil)
+
+  def directive(withImport: Boolean): Parser[Directive] = {
+    val directives = (if (withImport) List(importDirective) else Nil) ++ List(bindDirective, groupDirective(withImport))
+    choice(directives: _*) scope "directive"
   }
-
-  lazy val directives: Parser[List[Directive]] =
-    directive.map2(attempt(newline >> directive).many)(_ :: _)
-
-  lazy val directive: Parser[Directive] =
-    (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
-      "directive"
 
   lazy val importDirective = "import directive" |: {
     word("import") >> skipLWS >> stringLiteral.map(Import(_))
@@ -66,9 +66,9 @@ object ConfigParser {
     }
   }
 
-  lazy val groupDirective = "group directive" |: { for {
+  def groupDirective(withImport: Boolean) = "group directive" |: { for {
     gs <- attempt(ident.sepBy1('.') << skipLWS << '{' << skipLWS)
-    ds <- directives << skipLWS << '}'
+    ds <- directives(withImport) << skipLWS << '}'
     xs = gs.reverse
   } yield xs.tail.foldLeft(Group(xs.head, ds):Directive)((d, g) => Group(g, List(d))) }
 
@@ -98,7 +98,6 @@ object ConfigParser {
 
   lazy val ident: Parser[Name] = for {
     n <- satisfy(c => Character.isLetter(c)).map2(takeWhile(isCont))(_ +: _)
-    _ <- failWhen[Parser](n == "import", s"reserved word ($n) used as an identifier")
   } yield n.mkString
 
   lazy val value: Parser[CfgValue] = "value" |: choice(
@@ -111,9 +110,6 @@ object ConfigParser {
     scientific.map(d => CfgNumber(d.toDouble)),
     list.map(CfgList(_))
   )
-
-  def isChar(b: Boolean, c: Char) =
-    if (b) Some(false) else if (c == '"') None else Some(c == '\\')
 
 //  lazy val string: Parser[String] =
 //    (ch('\"') >> satisfy(_ != '\"').many.map(_.mkString) << ch('\"')) scope "string literal"
