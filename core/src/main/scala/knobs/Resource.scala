@@ -16,9 +16,9 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import java.net.{URI, URL}
+import java.net.URI
 import java.io.File
-import java.nio.file.{ FileSystems, Path => P, WatchEvent }
+import java.nio.file.{ FileSystems, Path => P}
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.util.concurrent.{ Executors, ThreadFactory }
 import scala.collection.JavaConverters._
@@ -73,7 +73,7 @@ private [knobs] case class WatchBox[W](value: W, W: Watchable[W]) extends Resour
 
 object Watched {
   def apply[R:Watchable](r: R): ResourceBox =
-    new WatchBox(r, implicitly[Watchable[R]])
+    WatchBox(r, implicitly[Watchable[R]])
 }
 
 object ResourceBox {
