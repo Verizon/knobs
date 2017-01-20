@@ -65,10 +65,9 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
           ref.write(n.toInt).flatMap(_ => Task.delay(latch.countDown))
         case _ => Task.delay(latch.countDown)
       })
-      _ <- Task {
-        c.setData.forPath("/knobs.cfg", "foo = 20\n".toArray.map(_.toByte))
-        latch.await
-      }
+      _ <- Task.delay(Thread.sleep(1000))
+      _ <- Task.delay(c.setData.forPath("/knobs.cfg", "foo = 20\n".toArray.map(_.toByte)))
+      _ <- Task.delay(latch.await)
       n2 <- ref.read
     } yield n1 == 10 && n2 == 20
     val r = prg.unsafePerformSync
