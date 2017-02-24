@@ -98,7 +98,8 @@ object ConfigParser {
 
   lazy val ident: Parser[Name] = for {
     n <- satisfy(c => Character.isLetter(c)).map2(takeWhile(isCont))(_ +: _)
-    _ <- failWhen[Parser](n == "import", s"reserved word ($n) used as an identifier")
+    w <- unit(n.mkString)
+    _ <- failWhen[Parser](w == "import", s"reserved word ($w) used as an identifier")
   } yield n.mkString
 
   lazy val value: Parser[CfgValue] = "value" |: choice(

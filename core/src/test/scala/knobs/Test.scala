@@ -75,6 +75,15 @@ object Test extends Properties("Knobs") {
       p2 = (acx == Some(1)) :| "nested"
     } yield p1 && p2 }
 
+  lazy val importAsIdentTest: Task[Prop] =
+    load(List(Required(ClassPathResource("import-as-ident.cfg")))).attempt.map(_.fold(
+      {
+        case ConfigError(_, msg) => msg contains "reserved word (import) used as an identifier"
+        case _ => false
+      },
+      _ => false
+    ))
+
   lazy val loadPropertiesTest: Task[Prop] =
     withLoad(List(Required(SysPropsResource(Prefix("path"))))) { cfg =>
       cfg.lookup[String]("path.separator").map(_.isDefined)
@@ -161,6 +170,8 @@ object Test extends Properties("Knobs") {
   property("interpolation") = interpTest.unsafePerformSync
 
   property("import") = importTest.unsafePerformSync
+
+  property("import-as-ident") = importAsIdentTest.unsafePerformSync
 
   property("load-system-properties") = loadPropertiesTest.unsafePerformSync
 
