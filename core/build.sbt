@@ -8,6 +8,6 @@ resolvers ++= Seq(
 libraryDependencies ++= {
   Seq(
     "org.scalaz.stream" %% "scalaz-stream" % scalazCrossVersioners.`scalaz-stream-0.8`(scalazVersion.value)("0.8.6"),
-    "io.verizon.ermine" %% "parser" % scalazCrossVersioners.default(scalazVersion.value)("0.4.0-SNAPSHOT")
+    "io.verizon.ermine" %% "parser" % scalazCrossVersioners.default(scalazVersion.value)("0.4.7")
   )
 }
