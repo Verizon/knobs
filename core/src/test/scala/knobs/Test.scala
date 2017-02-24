@@ -164,6 +164,8 @@ object Test extends Properties("Knobs") {
     }
   }
 
+  lazy val allCommentsTest: Task[Prop] =
+    load(List(Required(ClassPathResource("all-comments.cfg")))).attempt.map(_.isRight)
 
   property("load-pathological-config") = loadTest.unsafePerformSync
 
@@ -203,4 +205,5 @@ object Test extends Properties("Knobs") {
 
   property("mutable-config-value-error") = mutableConfigValueErrorTest.unsafePerformSync
 
+  property("all-comments") = allCommentsTest.unsafePerformSync
 }

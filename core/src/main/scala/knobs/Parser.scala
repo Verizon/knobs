@@ -39,21 +39,18 @@ object ConfigParser {
 
   /** Top-level parser of configuration files */
   lazy val topLevel: Parser[List[Directive]] = "configuration" |: {
-    directives << skipLWS << realEOF
+    skipLWS >> directives << realEOF
   }
 
   /** Parser of configuration files that don't support import directives */
-  lazy val sansImport: Parser[List[Directive]] = {
-    val d = (skipLWS >> choice(bindDirective, groupDirective) << skipHWS)
-    d.map2(attempt(newline >> d).many)(_ :: _)
-  }
+  lazy val sansImport: Parser[List[Directive]] =
+    (choice(bindDirective, groupDirective) << skipHWS).sepEndBy(newline << skipLWS)
 
   lazy val directives: Parser[List[Directive]] =
-    directive.map2(attempt(newline >> directive).many)(_ :: _)
+    (directive << skipHWS).sepEndBy(newline << skipLWS)
 
   lazy val directive: Parser[Directive] =
-    (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
-      "directive"
+    choice(importDirective, bindDirective, groupDirective) scope "directive"
 
   lazy val importDirective = "import directive" |: {
     word("import") >> skipLWS >> stringLiteral.map(Import(_))
