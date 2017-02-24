@@ -39,21 +39,18 @@ object ConfigParser {
 
   /** Top-level parser of configuration files */
   lazy val topLevel: Parser[List[Directive]] = "configuration" |: {
-    directives << skipLWS << realEOF
+    skipLWS >> directives << realEOF
   }
 
   /** Parser of configuration files that don't support import directives */
-  lazy val sansImport: Parser[List[Directive]] = {
-    val d = (skipLWS >> choice(bindDirective, groupDirective) << skipHWS)
-    d.map2(attempt(newline >> d).many)(_ :: _)
-  }
+  lazy val sansImport: Parser[List[Directive]] =
+    (choice(bindDirective, groupDirective) << skipHWS).sepEndBy(newline << skipLWS)
 
   lazy val directives: Parser[List[Directive]] =
-    directive.map2(attempt(newline >> directive).many)(_ :: _)
+    (directive << skipHWS).sepEndBy(newline << skipLWS)
 
   lazy val directive: Parser[Directive] =
-    (skipLWS >> choice(importDirective, bindDirective, groupDirective) << skipHWS) scope
-      "directive"
+    choice(importDirective, bindDirective, groupDirective) scope "directive"
 
   lazy val importDirective = "import directive" |: {
     word("import") >> skipLWS >> stringLiteral.map(Import(_))
@@ -98,7 +95,8 @@ object ConfigParser {
 
   lazy val ident: Parser[Name] = for {
     n <- satisfy(c => Character.isLetter(c)).map2(takeWhile(isCont))(_ +: _)
-    _ <- failWhen[Parser](n == "import", s"reserved word ($n) used as an identifier")
+    w <- unit(n.mkString)
+    _ <- failWhen[Parser](w == "import", s"reserved word ($w) used as an identifier")
   } yield n.mkString
 
   lazy val value: Parser[CfgValue] = "value" |: choice(

@@ -14,4 +14,10 @@
 //:   limitations under the License.
 //:
 //: ----------------------------------------------------------------------------
-sbt.version=0.13.13
+package knobs
+
+import scalaz.concurrent.Task
+
+object compatibility {
+  // for source compatibility in both scalaz versions
+}

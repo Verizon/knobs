@@ -1,5 +1,5 @@
 //: ----------------------------------------------------------------------------
-//: Copyright (C) 2017 Verizon.  All Rights Reserved.
+//: Copyright (C) 2015 Verizon.  All Rights Reserved.
 //:
 //:   Licensed under the Apache License, Version 2.0 (the "License");
 //:   you may not use this file except in compliance with the License.
@@ -14,4 +14,7 @@
 //:   limitations under the License.
 //:
 //: ----------------------------------------------------------------------------
-sbt.version=0.13.13
+package knobs
+
+case class ValueError(name: String, value: CfgValue) extends Exception(s"Key '$name' found but value '${value.pretty}' isn't the expected type.")
+

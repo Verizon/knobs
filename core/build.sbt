@@ -1,3 +1,4 @@
+import verizon.build.ScalazPlugin._
 
 resolvers ++= Seq(
   "scalaz.bintray" at "http://dl.bintray.com/scalaz/releases",
@@ -5,12 +6,8 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= {
-  val ermineVersion =
-    if(scalazStreamVersion.value.startsWith("0.7")) "0.3.3a"
-    else "0.3.3"
-
   Seq(
-    "org.scalaz.stream" %% "scalaz-stream" % scalazStreamVersion.value,
-    "io.verizon.ermine" %% "parser" % ermineVersion
+    "org.scalaz.stream" %% "scalaz-stream" % scalazCrossVersioners.`scalaz-stream-0.8`(scalazVersion.value)("0.8.6"),
+    "io.verizon.ermine" %% "parser" % scalazCrossVersioners.default(scalazVersion.value)("0.4.7")
   )
 }

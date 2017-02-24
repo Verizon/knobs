@@ -16,7 +16,7 @@
 //: ----------------------------------------------------------------------------
 package knobs
 import com.typesafe.config.{Config => TC, _}
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scalaz.concurrent.Task
 
@@ -39,7 +39,7 @@ object Typesafe {
       }
 
     val items: List[CfgValue] =
-      list.toList.flatMap { v =>
+      list.asScala.toList.flatMap { v =>
         v.valueType match {
           case ConfigValueType.NULL => None
           case ConfigValueType.BOOLEAN =>
@@ -59,7 +59,7 @@ object Typesafe {
   }
 
   private def convertTypesafeConfig(cfg: TC) = {
-    cfg.entrySet.foldLeft(Config.empty.env) {
+    cfg.entrySet.asScala.toSet.foldLeft(Config.empty.env) {
       case (m, entry) => {
         val (k, v) = (entry.getKey, entry.getValue)
         v.valueType match {
@@ -83,4 +83,3 @@ object Typesafe {
     }
   }
 }
-

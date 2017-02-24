@@ -14,4 +14,10 @@
 //:   limitations under the License.
 //:
 //: ----------------------------------------------------------------------------
-sbt.version=0.13.13
+package knobs
+
+sealed trait Trivial
+
+object Trivial {
+  implicit val trivial: Trivial = new Trivial {}
+}
