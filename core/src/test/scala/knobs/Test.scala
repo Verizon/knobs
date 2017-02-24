@@ -108,9 +108,7 @@ object Test extends Properties("Knobs") {
   lazy val fallbackErrorTest: Task[Prop] =
     load(List(Required(ClassPathResource("foobar.cfg") or
                        ClassPathResource("foobar.cfg")))).attempt.map(_.fold(
-      e =>
-        { println(e);
-        e.getMessage.toList.filter(_ == '\n').size == 3},
+      e => (e.getMessage.toList.filter(_ == '\n').size == 3),
       a => false
     ))
 
