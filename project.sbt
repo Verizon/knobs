@@ -31,3 +31,9 @@ lazy val zookeeper = project.dependsOn(core)
 lazy val docs = project.dependsOn(core, zookeeper)
 
 enablePlugins(DisablePublishingPlugin)
+
+// Some tests set system properties, which results in a
+// ConcurrentModificationException while other tests are iterating
+// over sys.props.  For a stable build, we need to reduce test
+// concurrency to 1 across modules.
+concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
