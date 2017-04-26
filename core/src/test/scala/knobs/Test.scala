@@ -84,6 +84,11 @@ object Test extends Properties("Knobs") {
       _ => false
     ))
 
+  lazy val importFromEnvTest: Task[Prop] =
+    withLoad(List(Required(FileResource(new java.io.File("core/src/test/resources/import-from-env.cfg"))))) { cfg => for {
+      aa <- cfg.lookup[String]("x.foo")
+    } yield aa == Some("bletch") }
+
   lazy val loadPropertiesTest: Task[Prop] =
     withLoad(List(Required(SysPropsResource(Prefix("path"))))) { cfg =>
       cfg.lookup[String]("path.separator").map(_.isDefined)
@@ -172,6 +177,8 @@ object Test extends Properties("Knobs") {
   property("import") = importTest.unsafePerformSync
 
   property("import-as-ident") = importAsIdentTest.unsafePerformSync
+
+  property("import-from-env") = importFromEnvTest.unsafePerformSync
 
   property("load-system-properties") = loadPropertiesTest.unsafePerformSync
 

@@ -95,8 +95,8 @@ package object knobs {
         (ds, _) = p
         seenp = seen + (path -> p)
         box = path.worth
-        r <- Foldable[List].foldLeftM(importsOf(box.resource, ds)(box.R).
-          filter(notSeen), seenp)(go)
+        imports <- importsOf(box.resource, ds)(box.R)
+        r <- Foldable[List].foldLeftM(imports.filter(notSeen), seenp)(go)
       } yield r
     }
     Foldable[List].foldLeftM(paths, Map():Loaded)(go)
@@ -140,10 +140,11 @@ package object knobs {
           val pfxp = pfx + name + "."
           Foldable[List].foldLeftM(xs, m)(directive(pfxp, f, _, _))
         case Import(path) =>
-          val fp = f resolve path
-          files.get(fp.required) match {
-            case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
-            case _ => Task.now(m)
+          interpolate(f, path, Map.empty).map(f.resolve).flatMap { fp =>
+            files.get(fp.required) match {
+              case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
+              case _ => Task.now(m)
+            }
           }
       }
     }
@@ -175,16 +176,15 @@ package object knobs {
   }
 
   /** Get all the imports in the given list of directives, relative to the given path */
-  def importsOf[R:Resource](path: R, d: List[Directive]): List[KnobsResource] =
-    resolveImports(path, d).map(_.required)
+  def importsOf[R:Resource](path: R, d: List[Directive]): Task[List[KnobsResource]] =
+    resolveImports(path, d).map(_.map(_.required))
 
   /** Get all the imports in the given list of directives, relative to the given path */
-  def resolveImports[R:Resource](path: R, d: List[Directive]): List[R] =
-    d match {
-      case Import(ref) :: xs => (path resolve ref) :: resolveImports(path, xs)
-      case Group(_, ys) :: xs => resolveImports(path, ys) ++ resolveImports(path, xs)
-      case _ :: xs => resolveImports(path, xs)
-      case _ => Nil
+  def resolveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
+    d.traverseM {
+      case Import(ref) => interpolate(path, ref, Map.empty).map(r => List(path.resolve(r)))
+      case Group(_, ys) => resolveImports(path, ys)
+      case _ => Task.now(Nil)
     }
 
   /**
@@ -192,9 +192,9 @@ package object knobs {
    * imports relative to the given path by loading them.
    */
   def recursiveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
-    resolveImports(path, d).traverse(r =>
+    resolveImports(path, d).flatMap(_.traverseM(r =>
       implicitly[Resource[R]].load(Required(r)).flatMap(dds =>
-        recursiveImports(r, dds))).map(_.flatten)
+        recursiveImports(r, dds))))
 
   private [knobs] def loadOne(path: KnobsResource): Task[(List[Directive], Process[Task, Unit])] = {
     val box = path.worth
