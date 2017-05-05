@@ -11,3 +11,5 @@ libraryDependencies ++= {
     "io.verizon.ermine" %% "parser" % scalazCrossVersioners.default(scalazVersion.value)("0.4.7")
   )
 }
+
+

@@ -60,3 +60,4 @@ env:
     - secure: "emCycBlDj0nwdK/SI4q/38WGlZS1tvttZbgzb38KegPUIOv6hr78L73t/2pb8FT/AHPdhYF4q6q8AXxAJi3QoiznMSAT1xyxZZ+wWrWqPuphhkqMSEdzcG8fbi3YGkB0sl+7ZLsveUg/JmG6j6NFjzWjRjb6Rn9MUWKGWDs5a8g="
     - secure: "RKDMtxH135S+urp/t92qAwe1L0oGDuheKSXBcjwU55v2OS1NX4GPzE64y9hCuYK43BkXB1Xv/mMnF55TYSjHHpnP4BUXW0/SIERrwM+JFQ1TiukocMNiRUZ0jzZ6sUl7wpwhDntXR//jb/6+gCxC7hdlYUQgQ6qjCQffBZT0RzY="
     - secure: "lqLNd52nASivxq6IFYsq7UIBbH2eHVcvqSbOGFkzDsWscBoeWl5BvM1uOGFRoU3kJB3L23tK3Dq8rfIMXUh6ghPQpMlLKNtQ1XiTIm0s5MqY4JqmRbSLb6eexof/sUE6CgtwTlYp6LTQzT0NLdlBsvyySq5EkfJqeMVH0K7uu5Y="
+    - KNOBS_TEST_DIR="knobs-test"

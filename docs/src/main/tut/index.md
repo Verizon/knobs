@@ -116,7 +116,7 @@ To import the contents of another configuration file, use the `import` directive
 import "$(HOME)/etc/myapp.cfg"
 ```
 
-Absolute paths are imported as is. Relative paths are resolved with respect to the file they are imported from. It is an error for an `import` directive to name a file that doesn't exist, cannot be read, or contains errors.
+Absolute paths are imported as is. Relative paths are resolved with respect to the file they are imported from. It is an error for an `import` directive to name a file that doesn't exist, cannot be read, or contains errors. Only environment variables, not system properties or other bindings, are interpolated into import directives.
 
 #### File lookup semantics
 

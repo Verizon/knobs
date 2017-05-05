@@ -19,6 +19,7 @@ import scalaz.concurrent.Task
 import scalaz.syntax.foldable._
 import scalaz.syntax.traverse._
 import scalaz.syntax.monad._
+import scalaz.syntax.std.option._
 import scalaz.std.list._
 import scalaz.stream._
 import scalaz.stream.merge.mergeN
@@ -95,7 +96,7 @@ package object knobs {
         (ds, _) = p
         seenp = seen + (path -> p)
         box = path.worth
-        imports <- importsOf(box.resource, ds)(box.R)
+        imports <- importsOfM(box.resource, ds)(box.R)
         r <- Foldable[List].foldLeftM(imports.filter(notSeen), seenp)(go)
       } yield r
     }
@@ -140,7 +141,7 @@ package object knobs {
           val pfxp = pfx + name + "."
           Foldable[List].foldLeftM(xs, m)(directive(pfxp, f, _, _))
         case Import(path) =>
-          interpolate(f, path, Map.empty).map(f.resolve).flatMap { fp =>
+          interpolateEnv(f, path).map(f.resolve).flatMap { fp =>
             files.get(fp.required) match {
               case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
               case _ => Task.now(m)
@@ -176,14 +177,45 @@ package object knobs {
   }
 
   /** Get all the imports in the given list of directives, relative to the given path */
-  def importsOf[R:Resource](path: R, d: List[Directive]): Task[List[KnobsResource]] =
-    resolveImports(path, d).map(_.map(_.required))
+  @deprecated("Does not support interpolation of environment variables", "4.0.31")
+  def importsOf[R:Resource](path: R, d: List[Directive]): List[KnobsResource] =
+    resolveImports(path, d).map(_.required)
+
+  private [knobs] def importsOfM[R:Resource](path: R, d: List[Directive]): Task[List[KnobsResource]] =
+    resolveImportsM(path, d).map(_.map(_.required))
+
+  // nb There is nothing Tasky about this, but the callers go into Task, and MonadError changed
+  // incompatibly between Scalaz 7.1 and Scalaz 7.2, so we'll use the monad of least resistance
+  private [knobs] def interpolateEnv[R: Resource](f: R, s: String): Task[String] = {
+    def interpret(i: Interpolation): Task[String] = i match {
+      case Literal(x) => Task.now(x)
+      case Interpolate(name) =>
+        sys.env.get(name)
+          // added because lots of sys-admins think software is case unaware. Doh!
+          .orElse(sys.env.get(name.toLowerCase))
+          .cata(Task.now, Task.fail(ConfigError(f, s"""No such variable "$name". Only environment variables are interpolated in import directives.""")))
+    }
+    if (s contains "$") P.interp.parse(s).fold(
+      e => Task.fail(ConfigError(f, e)),
+      xs => xs.traverse(interpret).map(_.mkString)
+    ) else Task.now(s)
+  }
 
   /** Get all the imports in the given list of directives, relative to the given path */
-  def resolveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
+  @deprecated("Does not support interpolation of environment variables", "4.0.31")
+  def resolveImports[R:Resource](path: R, d: List[Directive]): List[R] =
+    d match {
+      case Import(ref) :: xs => (path resolve ref) :: resolveImports(path, xs)
+      case Group(_, ys) :: xs => resolveImports(path, ys) ++ resolveImports(path, xs)
+      case _ :: xs => resolveImports(path, xs)
+      case _ => Nil
+    }
+
+  /** Get all the imports in the given list of directives, relative to the given path */
+  private [knobs] def resolveImportsM[R: Resource](path: R, d: List[Directive]): Task[List[R]] =
     d.traverseM {
-      case Import(ref) => interpolate(path, ref, Map.empty).map(r => List(path.resolve(r)))
-      case Group(_, ys) => resolveImports(path, ys)
+      case Import(ref) => interpolateEnv(path, ref).map(r => List(path.resolve(r)))
+      case Group(_, ys) => resolveImportsM(path, ys)
       case _ => Task.now(Nil)
     }
 
@@ -192,7 +224,7 @@ package object knobs {
    * imports relative to the given path by loading them.
    */
   def recursiveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
-    resolveImports(path, d).flatMap(_.traverseM(r =>
+    resolveImportsM(path, d).flatMap(_.traverseM(r =>
       implicitly[Resource[R]].load(Required(r)).flatMap(dds =>
         recursiveImports(r, dds))))
 
@@ -256,4 +288,3 @@ package object knobs {
     if (b) m else implicitly[Monad[M]].pure(())
 
 }
-
