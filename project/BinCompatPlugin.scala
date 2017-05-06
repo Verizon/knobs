@@ -14,18 +14,23 @@
 //:   limitations under the License.
 //:
 //: ----------------------------------------------------------------------------
-resolvers += Resolver.url(
-  "tpolecat-sbt-plugin-releases",
-    url("http://dl.bintray.com/content/tpolecat/sbt-plugin-releases"))(
-        Resolver.ivyStylePatterns)
+import sbt._, Keys._
+import com.typesafe.tools.mima.plugin.MimaPlugin
 
-addSbtPlugin("io.verizon.build" % "sbt-rig" % "2.0.29")
+object BinCompatPlugin extends AutoPlugin {
+  object autoImport {
+    val binCompatVersion = settingKey[Option[String]]("version to check binary compatibility against")
+  }
 
-// docs
-addSbtPlugin("com.typesafe.sbt"  % "sbt-site"        % "0.8.1")
-addSbtPlugin("com.typesafe.sbt"  % "sbt-ghpages"     % "0.5.3")
-addSbtPlugin("com.typesafe"      % "sbt-mima-plugin" % "0.1.14")
-addSbtPlugin("org.tpolecat"      % "tut-plugin"      % "0.4.7")
-addSbtPlugin("com.eed3si9n"      % "sbt-unidoc"      % "0.3.2")
+  import autoImport._
+  import MimaPlugin.autoImport._
 
-scalacOptions += "-deprecation"
+  override def requires = MimaPlugin && verizon.build.ScalazPlugin
+
+  override def trigger = allRequirements
+
+  override lazy val projectSettings = Seq(
+    mimaPreviousArtifacts := binCompatVersion.value
+      .fold(Set.empty[ModuleID])(v => Set(organization.value %% name.value % v))
+  )
+}
