@@ -19,6 +19,7 @@ import scalaz.concurrent.Task
 import scalaz.syntax.foldable._
 import scalaz.syntax.traverse._
 import scalaz.syntax.monad._
+import scalaz.syntax.std.option._
 import scalaz.std.list._
 import scalaz.stream._
 import scalaz.stream.merge.mergeN
@@ -95,8 +96,8 @@ package object knobs {
         (ds, _) = p
         seenp = seen + (path -> p)
         box = path.worth
-        r <- Foldable[List].foldLeftM(importsOf(box.resource, ds)(box.R).
-          filter(notSeen), seenp)(go)
+        imports <- importsOfM(box.resource, ds)(box.R)
+        r <- Foldable[List].foldLeftM(imports.filter(notSeen), seenp)(go)
       } yield r
     }
     Foldable[List].foldLeftM(paths, Map():Loaded)(go)
@@ -140,10 +141,11 @@ package object knobs {
           val pfxp = pfx + name + "."
           Foldable[List].foldLeftM(xs, m)(directive(pfxp, f, _, _))
         case Import(path) =>
-          val fp = f resolve path
-          files.get(fp.required) match {
-            case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
-            case _ => Task.now(m)
+          interpolateEnv(f, path).map(f.resolve).flatMap { fp =>
+            files.get(fp.required) match {
+              case Some((ds, _)) => Foldable[List].foldLeftM(ds, m)(directive(pfx, fp, _, _))
+              case _ => Task.now(m)
+            }
           }
       }
     }
@@ -175,10 +177,32 @@ package object knobs {
   }
 
   /** Get all the imports in the given list of directives, relative to the given path */
+  @deprecated("Does not support interpolation of environment variables", "4.0.31")
   def importsOf[R:Resource](path: R, d: List[Directive]): List[KnobsResource] =
     resolveImports(path, d).map(_.required)
 
+  private [knobs] def importsOfM[R:Resource](path: R, d: List[Directive]): Task[List[KnobsResource]] =
+    resolveImportsM(path, d).map(_.map(_.required))
+
+  // nb There is nothing Tasky about this, but the callers go into Task, and MonadError changed
+  // incompatibly between Scalaz 7.1 and Scalaz 7.2, so we'll use the monad of least resistance
+  private [knobs] def interpolateEnv[R: Resource](f: R, s: String): Task[String] = {
+    def interpret(i: Interpolation): Task[String] = i match {
+      case Literal(x) => Task.now(x)
+      case Interpolate(name) =>
+        sys.env.get(name)
+          // added because lots of sys-admins think software is case unaware. Doh!
+          .orElse(sys.env.get(name.toLowerCase))
+          .cata(Task.now, Task.fail(ConfigError(f, s"""No such variable "$name". Only environment variables are interpolated in import directives.""")))
+    }
+    if (s contains "$") P.interp.parse(s).fold(
+      e => Task.fail(ConfigError(f, e)),
+      xs => xs.traverse(interpret).map(_.mkString)
+    ) else Task.now(s)
+  }
+
   /** Get all the imports in the given list of directives, relative to the given path */
+  @deprecated("Does not support interpolation of environment variables", "4.0.31")
   def resolveImports[R:Resource](path: R, d: List[Directive]): List[R] =
     d match {
       case Import(ref) :: xs => (path resolve ref) :: resolveImports(path, xs)
@@ -187,14 +211,22 @@ package object knobs {
       case _ => Nil
     }
 
+  /** Get all the imports in the given list of directives, relative to the given path */
+  private [knobs] def resolveImportsM[R: Resource](path: R, d: List[Directive]): Task[List[R]] =
+    d.traverseM {
+      case Import(ref) => interpolateEnv(path, ref).map(r => List(path.resolve(r)))
+      case Group(_, ys) => resolveImportsM(path, ys)
+      case _ => Task.now(Nil)
+    }
+
   /**
    * Get all the imports in the given list of directive, recursively resolving
    * imports relative to the given path by loading them.
    */
   def recursiveImports[R:Resource](path: R, d: List[Directive]): Task[List[R]] =
-    resolveImports(path, d).traverse(r =>
+    resolveImportsM(path, d).flatMap(_.traverseM(r =>
       implicitly[Resource[R]].load(Required(r)).flatMap(dds =>
-        recursiveImports(r, dds))).map(_.flatten)
+        recursiveImports(r, dds))))
 
   private [knobs] def loadOne(path: KnobsResource): Task[(List[Directive], Process[Task, Unit])] = {
     val box = path.worth
@@ -256,4 +288,3 @@ package object knobs {
     if (b) m else implicitly[Monad[M]].pure(())
 
 }
-

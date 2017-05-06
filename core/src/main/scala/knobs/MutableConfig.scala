@@ -169,4 +169,3 @@ case class MutableConfig(root: String, base: BaseConfig) {
     Process.eval(subscribe(p, (k, v) => sig.set((k, v)))).flatMap(_ => sig.discrete).drop(1) // droping the previously initilized tuple of the signal.
   }
 }
-

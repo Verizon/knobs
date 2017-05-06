@@ -48,7 +48,7 @@ object Test extends Properties("Knobs") {
       db <- cfg.lookup[Boolean]("ag.q-e.i_u9.a")
       du <- cfg.lookup[Duration]("dur")
       fdu <- cfg.lookup[FiniteDuration]("dur")
-  } yield (aa == Some(1)) :| "int property" &&
+    } yield (aa == Some(1)) :| "int property" &&
           (ab == Some("foo")) :| "string property" &&
           (acx == Some(1)) :| "nested int" &&
           (acy == Some(true)) :| "nested bool" &&
@@ -58,8 +58,7 @@ object Test extends Properties("Knobs") {
           (db == Some(false)) :| "deep bool" &&
           (du == Some(5.seconds)) :| "duration property" &&
           (fdu == Some(5.seconds)) :| "finite duration property"
-
-  }
+    }
 
   lazy val interpTest: Task[Prop] =
     withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
@@ -82,6 +81,38 @@ object Test extends Properties("Knobs") {
         case _ => false
       },
       _ => false
+    ))
+
+  lazy val importFromEnvTest: Task[Prop] =
+    sys.env.get("KNOBS_TEST_DIR") match {
+      case Some("knobs-test") =>
+        withLoad(List(Required(ClassPathResource("import-from-env.cfg")))) { cfg => for {
+          aa <- cfg.lookup[String]("x.hello")
+        } yield aa == Some("world") }
+      case oops =>
+        // We could see to this ourselves by forking, except https://github.com/rickynils/scalacheck/issues/185
+        sys.error(s"Test assumes that KNOBS_TEST_DIR environment variable is set to 'knobs-test', was $oops")
+    }
+
+  lazy val importFromEnvMissingFileTest: Task[Prop] =
+    sys.env.get("KNOBS_TEST_DIR") match {
+      case Some("knobs-test") =>
+        load(List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
+          case scalaz.-\/(f: java.io.FileNotFoundException) => true
+          case _ => false
+        }
+      case oops =>
+        // We could see to this ourselves by forking, except https://github.com/rickynils/scalacheck/issues/185
+        sys.error(s"Test assumes that KNOBS_TEST_DIR environment variable is set to 'knobs-test', was $oops")
+    }
+
+  lazy val importFromSysPropTest: Task[Prop] =
+    load(List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
+      {
+        case ConfigError(_, msg) => msg.contains("""No such variable "user.dir". Only environment variables are interpolated in import directives.""")
+        case x => false
+      },
+      x => false
     ))
 
   lazy val loadPropertiesTest: Task[Prop] =
@@ -129,7 +160,7 @@ object Test extends Properties("Knobs") {
   lazy val classLoaderTest: Task[Prop] =
     load(List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
       case scalaz.-\/(f: java.io.FileNotFoundException) => true
-      case _ => false
+      case x => false
     }
 
   lazy val immutableConfigValueErrorTest: Task[Prop] = {
@@ -172,6 +203,12 @@ object Test extends Properties("Knobs") {
   property("import") = importTest.unsafePerformSync
 
   property("import-as-ident") = importAsIdentTest.unsafePerformSync
+
+  property("import-from-env") = importFromEnvTest.unsafePerformSync
+
+  property("import-from-env-missing-file") = importFromEnvMissingFileTest.unsafePerformSync
+
+  property("import-from-sys-prop") = importFromSysPropTest.unsafePerformSync
 
   property("load-system-properties") = loadPropertiesTest.unsafePerformSync
 
