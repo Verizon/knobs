@@ -11,18 +11,18 @@ section: "usage"
 First you need to add the dependency for Knobs to your `build.scala` or your `build.sbt` file:
 
 ````
-libraryDependencies += "oncue.knobs" %% "core" % "x.x.+"
+libraryDependencies += "io.verizon.knobs" %% "core" % "x.x.+"
 ````
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [on Bintray](https://bintray.com/oncue/releases/knobs/view).)
-
-You will probably need to add a resolver entry so SBT can find the jar:
-
-````
-  resolvers += "Oncue Bintray Repo" at "http://dl.bintray.com/oncue/releases"
-````
+Where `x.x` is the desired Knobs version. (Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).)
 
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
+
+If you get an unresolved `scalaz-stream` dependency, you will need to also add the following resolver to SBT:
+
+````
+resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
+````
 
 <a name="resources"></a>
 
@@ -57,7 +57,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   Required(ClassPathResource("foo.cfg")) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@2c29d41c
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@63040587
 ```
 
 This of course assumes that the `foo.cfg` file is located in the root of the classpath (`/`). If you had a file that was not in the root, you could simply do something like:
@@ -71,7 +71,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(ClassPathResource("subfolder/foo.cfg")) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@15d3f876
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@54a2df07
 ```
 
 Classpath resources are immutable and aren't intended to be reloaded in the general case. You can technically reload them, but this has no effect unless you're using a custom ClassLoader or employing some classpath tricks. Usually the classpath resource will exist inside your application JAR at deployment time and won't change at runtime.
@@ -92,7 +92,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(FileResource(new File("/path/to/foo.cfg"))) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@4bd23b9a
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@1ca18c9f
 ```
 
 On-disk files can be reloaded. [See below](#reloading) for information about reloading configurations.
@@ -110,7 +110,7 @@ import scalaz.concurrent.Task
 
 scala> val cfg: Task[Config] = knobs.loadImmutable(
      |   	Required(SysPropsResource(Prefix("oncue"))) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@6356500a
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@a1cb416
 ```
 
 System properties are just key/value pairs, and *Knobs* provides a couple of different `Pattern`s that you can use to match on the key name:
@@ -222,7 +222,7 @@ scala> // load some configuration
      |   Required(FileResource(new File("someFile.cfg")) or
      |   ClassPathResource("someName.cfg")) :: Nil
      | )
-config: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@8d584e0
+config: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@e763869
 
 scala> case class Connection(usr: String, pwd: String, port:Option[Int])
 defined class Connection
@@ -235,7 +235,7 @@ scala> // do something with it
      |     pwd = cfg.require[String]("db.password")
      |     port = cfg.lookup[Int]("db.port")
      |   } yield Connection(usr, pwd, port)
-connection: scalaz.concurrent.Task[Connection] = scalaz.concurrent.Task@60dc36e5
+connection: scalaz.concurrent.Task[Connection] = scalaz.concurrent.Task@12cf30a1
 ```
 
 There are two different ways of looking up a configuration value in this example:
@@ -272,13 +272,13 @@ You can subscribe to notifications of changes to the configuration with the `sub
 
 ```scala
 scala> val cfg: Task[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
-cfg: scalaz.concurrent.Task[knobs.MutableConfig] = scalaz.concurrent.Task@5d75d80c
+cfg: scalaz.concurrent.Task[knobs.MutableConfig] = scalaz.concurrent.Task@1ca5a0a9
 
 scala> cfg.flatMap(_.subscribe (Prefix("somePrefix.*"), {
      |   case (n, None) => Task { println(s"The parameter $n was removed") }
      |   case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
      | }))
-res2: scalaz.concurrent.Task[Unit] = scalaz.concurrent.Task@71162c32
+res2: scalaz.concurrent.Task[Unit] = scalaz.concurrent.Task@3b7507a1
 ```
 
 You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [scalaz-stream](http://github.com/scalaz/scalaz-stream) `Process[Task, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
@@ -292,13 +292,13 @@ If you're running *Knobs* from within an application that is hosted on AWS, you'
 ```scala
 scala> val c1: Task[Config] =
      |   loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
-c1: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@8a04e0d
+c1: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@7529621b
 
 scala> val cfg = for {
      |   a <- c1
      |   b <- aws.config
      | } yield a ++ b
-cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@ac81fba
+cfg: scalaz.concurrent.Task[knobs.Config] = scalaz.concurrent.Task@78bb743a
 ```
 
 This simple statement adds the following configuration keys to the in-memory configuration:
