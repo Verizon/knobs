@@ -18,15 +18,15 @@ package knobs
 import com.typesafe.config.{Config => TC, _}
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
-import scalaz.concurrent.Task
+import cats.effect.IO
 
 object Typesafe {
-  def config: Task[Config] = Task {
+  def config: IO[Config] = IO {
     val cfg = ConfigFactory.load
     Config(convertTypesafeConfig(cfg))
   }
 
-  def config(cfg: TC): Task[Config] = Task {
+  def config(cfg: TC): IO[Config] = IO {
     Config(convertTypesafeConfig(cfg))
   }
 

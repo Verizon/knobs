@@ -16,7 +16,7 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.concurrent.Task
+import cats.effect.IO
 
 /**
  * Global configuration data. This is the top-level config from which
@@ -35,10 +35,10 @@ case class BaseConfig(paths: IORef[List[(Name, KnobsResource)]],
   /**
    * Get the `Config` at the given root location
    */
-  def at(root: String): Task[Config] =
+  def at(root: String): IO[Config] =
     cfgMap.read.map(Config(_).subconfig(root))
 
-  lazy val reload: Task[Unit] = for {
+  lazy val reload: IO[Unit] = for {
     ps <- paths.read
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
     m  <- cfgMap.atomicModify(m => (mp, m))

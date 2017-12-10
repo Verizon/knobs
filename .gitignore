@@ -24,3 +24,5 @@ junitreports/
 tags
 .ivy2/
 gpg.sbt
+
+.ensime*

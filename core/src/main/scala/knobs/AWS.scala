@@ -18,7 +18,8 @@ package knobs
 
 import java.net.{URL,URLConnection}
 import scala.io.Source
-import scalaz.concurrent.Task
+
+import cats.effect.IO
 
 /**
  * Reads a set of configuration information from the running machine within
@@ -36,43 +37,51 @@ object aws {
 
   private val defaultFormating: String => String = x => "\"" +x+ "\""
 
+  private def or[A](x: IO[A], y: => IO[A]): IO[A] =
+    x.attempt.flatMap {
+      case Left(_)  => y
+      case Right(a) => IO.pure(a)
+    }
+
   /**
    * attempt to read an item of metadata from the AWS metadata service in under 300ms.
    */
-  private def fetch(child: Path, parent: Path = root, version: Path = revision): Task[String] =
-    Task {
+  private def fetch(child: Path, parent: Path = root, version: Path = revision): IO[String] =
+    IO {
       val conn = new URL(s"$parent/$version/$child").openConnection
       conn.setConnectTimeout(300)
       conn.setReadTimeout(300)
       Source.fromInputStream(conn.getInputStream).mkString
     }
 
-  private def convert(field: String, section: String = "aws", formatter: String => String = defaultFormating)(response: String): Task[Config] =
-    Config.parse(s"$section { $field = ${formatter(response)} }").fold(Task.fail, Task.now)
+  private def convert(field: String, section: String = "aws", formatter: String => String = defaultFormating)(response: String): IO[Config] =
+    Config.parse(s"$section { $field = ${formatter(response)} }").fold(IO.raiseError, IO.pure)
 
-  def userdata: Task[Config] = fetch("user-data")
-    .flatMap(response => Config.parse(response)
-    .fold(Task.fail, Task.now)) or Task.now(Config.empty)
+  def userdata: IO[Config] =
+    or(
+      fetch("user-data").flatMap(response => Config.parse(response).fold(IO.raiseError, IO.pure)),
+      IO.pure(Config.empty)
+    )
 
-  def instance: Task[Config] =
+  def instance: IO[Config] =
     fetch("meta-data/instance-id").flatMap(convert("instance-id"))
 
-  def ami: Task[Config] =
+  def ami: IO[Config] =
     fetch("meta-data/ami-id").flatMap(convert("ami-id"))
 
-  def securitygroups: Task[Config] = fetch("meta-data/security-groups").flatMap(
+  def securitygroups: IO[Config] = fetch("meta-data/security-groups").flatMap(
     convert("security-groups", formatter = x => "[" + x.split('\n').map(x => "\""+x+"\"").mkString(", ") + "]"  ))
 
-  def zone: Task[Config] =
+  def zone: IO[Config] =
     fetch("meta-data/placement/availability-zone").flatMap(convert("availability-zone"))
 
-  def region: Task[Config] =
+  def region: IO[Config] =
     fetch("meta-data/placement/availability-zone").map(_.dropRight(1)).flatMap(convert("region"))
 
-  def localIP: Task[Config] =
+  def localIP: IO[Config] =
     fetch("meta-data/local-ipv4").flatMap(convert("local-ipv4", section = "aws.network"))
 
-  def publicIP: Task[Config] =
+  def publicIP: IO[Config] =
     fetch("meta-data/public-ipv4").flatMap(convert("public-ipv4", section = "aws.network"))
 
   /**
@@ -80,15 +89,15 @@ object aws {
    * thing you want to call anymore than once, but its value is cached internally
    * within the Config object that this is composed with.
    */
-  lazy val config: Task[Config] =
-    (for {
+  lazy val config: IO[Config] =
+    or (for {
       a <- instance
       b <- ami
       c <- zone
       d <- securitygroups
       e <- localIP
-      f <- publicIP or Task.now(Config.empty) // machines in vpc do not have public ip
+      f <- or(publicIP, IO.pure(Config.empty)) // machines in vpc do not have public ip
       g <- userdata
       h <- region
-    } yield a ++ b ++ c ++ d ++ e ++ f ++ g ++ h) or Task.now(Config.empty) // fallback for running someplace other than aws.
+    } yield a ++ b ++ c ++ d ++ e ++ f ++ g ++ h, IO.pure(Config.empty)) // fallback for running someplace other than aws.
 }

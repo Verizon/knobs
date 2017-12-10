@@ -18,11 +18,7 @@ package knobs
 
 import language.higherKinds._
 
-import scalaz._
-import scalaz.syntax.foldable._
-import scalaz.syntax.traverse._
-import scalaz.std.list._
-import scalaz.std.option._
+import cats.implicits._
 import scala.concurrent.duration.Duration
 
 object ConfigParser {
@@ -31,8 +27,8 @@ object ConfigParser {
 
   implicit class ParserOps[A](p: Parser[A]) {
     def parse(s: String) = runParser(p, s) match {
-      case Left(e) => \/.left(e.pretty.toString)
-      case Right((_, r)) => \/.right(r)
+      case Left(e)       => Left(e.pretty.toString)
+      case Right((_, r)) => Right(r)
     }
     def |:(s: String) = p scope s
   }
@@ -164,7 +160,7 @@ object ConfigParser {
   lazy val duration: Parser[CfgValue] = "duration" |: { for {
     d <- (scientific << whitespace.skipOptional)
     x <- "time unit" |: takeWhile(_.isLetter).map(_.mkString)
-    r <- \/.fromTryCatchNonFatal(Duration.create(1, x)).fold(
+    r <- Either.catchNonFatal(Duration.create(1, x)).fold(
       e => fail(e.getMessage),
       o => unit(CfgDuration(o * d.toDouble)))
   } yield r }

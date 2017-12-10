@@ -16,9 +16,11 @@
 //: ----------------------------------------------------------------------------
 organization in Global := "io.verizon.knobs"
 
-crossScalaVersions in Global := Seq("2.12.1", "2.11.8", "2.10.6")
+crossScalaVersions in Global := Seq("2.12.4", "2.11.12")
 
 scalaVersion in Global := crossScalaVersions.value.head
+
+scalacOptions in Global := Seq("-Ypartial-unification")
 
 lazy val knobs = project.in(file(".")).aggregate(core, typesafe, zookeeper, docs)
 
@@ -30,15 +32,10 @@ lazy val zookeeper = project.dependsOn(core)
 
 lazy val docs = project.dependsOn(core, zookeeper)
 
-(binCompatVersion in ThisBuild) := Some(scalazCrossVersioner.value("4.0.30"))
-
 enablePlugins(DisablePublishingPlugin)
-binCompatVersion := None
 
 // Some tests set system properties, which results in a
 // ConcurrentModificationException while other tests are iterating
 // over sys.props.  For a stable build, we need to reduce test
 // concurrency to 1 across modules.
 concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
-
-

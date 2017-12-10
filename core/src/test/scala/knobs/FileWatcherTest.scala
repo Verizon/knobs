@@ -21,10 +21,11 @@ import java.util.concurrent.CountDownLatch
 import org.scalacheck._
 import org.scalacheck.Prop._
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.Source
-import scalaz.concurrent.Task
 import Resource._
-import compatibility._
+
+import cats.effect.IO
 
 object FileWatcherTests extends Properties("FileWatch") {
 
@@ -34,20 +35,20 @@ object FileWatcherTests extends Properties("FileWatch") {
     val latch = new CountDownLatch(1)
     val prg = for {
       ref <- IORef("")
-      _   <- Task.delay(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
+      _   <- IO(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
       cfg <- load(List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(t@CfgText(s))) =>
-          ref.write(t.pretty).flatMap(_ => Task.delay(latch.countDown))
+          ref.write(t.pretty).flatMap(_ => IO(latch.countDown))
         case _ => {
-          Task.delay(latch.countDown)
+          IO(latch.countDown)
         }
       })
-      _   <- Task.delay(Thread.sleep(1000))
-      _   <- Task.delay(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
-      _   <- Task.delay(latch.await)
+      _   <- IO(Thread.sleep(1000))
+      _   <- IO(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
+      _   <- IO(latch.await)
       r   <- ref.read
     } yield r == "\"bar\""
-    prg.unsafePerformSync
+    prg.unsafeRunSync
   }
 }

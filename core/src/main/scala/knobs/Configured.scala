@@ -16,12 +16,10 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.syntax.traverse._
-import scalaz.syntax.applicative._
-import scalaz.std.list._
-import scalaz.std.option._
-import scalaz.{Monad,\/}
-import concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.{Duration, FiniteDuration}
+
+import cats.{Monad, StackSafeMonad}
+import cats.implicits._
 
 /**
  * The class of types that can be automatically and safely
@@ -41,11 +39,12 @@ object Configured {
     def apply(v: CfgValue) = f(v)
   }
 
-  implicit val configuredMonad: Monad[Configured] = new Monad[Configured] {
-    def point[A](a: => A) = new Configured[A] {
+  implicit val configuredMonad: Monad[Configured] = new StackSafeMonad[Configured] {
+    def pure[A](a: A) = new Configured[A] {
       def apply(v: CfgValue) = Some(a)
     }
-    def bind[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
+
+    def flatMap[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
       def apply(v: CfgValue) = ca(v).flatMap(f(_)(v))
     }
   }
@@ -107,7 +106,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B]
   ): Configured[(A, B)] = new Configured[(A, B)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: Nil) => (A(a) |@| B(b))((_, _))
+      case CfgList(a :: b :: Nil) => (A(a), B(b)).mapN((_, _))
       case _ => None
     }
   }
@@ -116,7 +115,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B], C: Configured[C]
   ): Configured[(A, B, C)] = new Configured[(A, B, C)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: c :: Nil) => (A(a) |@| B(b) |@| C(c))((_, _, _))
+      case CfgList(a :: b :: c :: Nil) => (A(a), B(b), C(c)).mapN((_, _, _))
       case _ => None
     }
   }
@@ -125,8 +124,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B], C: Configured[C], D: Configured[D]
   ): Configured[(A, B, C, D)] = new Configured[(A, B, C, D)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: c :: d :: Nil) =>
-        ((A(a) |@| B(b) |@| C(c) |@| D(d)))((_, _, _, _))
+      case CfgList(a :: b :: c :: d :: Nil) => (A(a), B(b), C(c), D(d)).mapN((_, _, _, _))
       case _ => None
     }
   }

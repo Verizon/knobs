@@ -18,27 +18,27 @@ package knobs
 
 import java.util.concurrent.atomic.AtomicReference
 
-import scalaz.concurrent.Task
+import cats.effect.IO
 
-/** An atomically updatable reference, guarded by the `Task` monad. */
+/** An atomically updatable reference, guarded by the `IO` monad. */
 sealed abstract class IORef[A] {
-  def read: Task[A]
-  def write(value: A): Task[Unit]
-  def atomicModify[B](f: A => (A, B)): Task[B]
-  def modify(f: A => A): Task[Unit] =
+  def read: IO[A]
+  def write(value: A): IO[Unit]
+  def atomicModify[B](f: A => (A, B)): IO[B]
+  def modify(f: A => A): IO[Unit] =
     atomicModify(a => (f(a), ()))
 }
 
 object IORef {
-  def apply[A](value: A): Task[IORef[A]] = Task.delay(new IORef[A] {
+  def apply[A](value: A): IO[IORef[A]] = IO { new IORef[A] {
     val ref = new AtomicReference(value)
-    def read = Task.delay(ref.get)
-    def write(value: A) = Task.delay(ref.set(value))
+    def read = IO { ref.get }
+    def write(value: A) = IO { ref.set(value) }
     def atomicModify[B](f: A => (A, B)) = for {
       a <- read
       (a2, b) = f(a)
-      p <- Task.delay(ref.compareAndSet(a, a2))
-      r <- if (p) Task.now(b) else atomicModify(f)
+      p <- IO { ref.compareAndSet(a, a2) }
+      r <- if (p) IO.pure(b) else atomicModify(f)
     } yield r
-  })
+  } }
 }

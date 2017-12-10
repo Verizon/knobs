@@ -16,5 +16,5 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-case class ValueError(name: String, value: CfgValue) extends Exception(s"Key '$name' found but value '${value.pretty}' isn't the expected type.")
-
+final case class ValueError(name: String, value: CfgValue)
+  extends Exception(s"Key '$name' found but value '${value.pretty}' isn't the expected type.")

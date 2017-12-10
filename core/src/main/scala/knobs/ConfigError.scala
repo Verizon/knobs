@@ -16,8 +16,8 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.syntax.show._
+import cats.syntax.show._
 
 /** An error during parsing of a configuration file */
-case class ConfigError[R:Resource](path: R, err: String) extends Exception(s"${path.show}:$err")
+final case class ConfigError[R: Resource](path: R, err: String) extends Exception(s"${path.show}:$err")
 
