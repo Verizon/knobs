@@ -38,9 +38,8 @@ import fs2.Stream
 case class ZNode(client: CuratorFramework, path: Path)
 
 object ZooKeeper {
-  private def defaultCfg(implicit ec: ExecutionContext) =
-    List(Required(FileResource(new File("/usr/share/oncue/etc/zookeeper.cfg")) or
-    ClassPathResource("oncue/zookeeper.cfg")))
+  private def defaultCfg =
+    List(Required(ClassPathResource("oncue/zookeeper.cfg")))
 
   /**
    * A process that produces an event when the given path's data changes.
@@ -179,7 +178,7 @@ object ZooKeeper {
   def unsafeFromResource(customConfig: List[KnobsResource])(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) =
     unsafe(customConfig)
 
-  protected def unsafe(config: List[KnobsResource] = null)(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) = {
+  protected def unsafe(config: List[KnobsResource] = defaultCfg)(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) = {
     val (box, c) = doZK(config).unsafeRunSync
     (box, IO(c.close))
   }
