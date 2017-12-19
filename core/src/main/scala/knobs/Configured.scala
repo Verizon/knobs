@@ -39,13 +39,25 @@ object Configured {
     def apply(v: CfgValue) = f(v)
   }
 
-  implicit val configuredMonad: Monad[Configured] = new StackSafeMonad[Configured] {
+  implicit val configuredMonad: Monad[Configured] = new Monad[Configured] {
     def pure[A](a: A) = new Configured[A] {
       def apply(v: CfgValue) = Some(a)
     }
 
     def flatMap[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
       def apply(v: CfgValue) = ca(v).flatMap(f(_)(v))
+    }
+
+    // Adapted from https://github.com/circe/circe/blob/master/modules/core/shared/src/main/scala/io/circe/Decoder.scala#L868-L877
+    def tailRecM[A, B](a: A)(f: A => Configured[Either[A, B]]): Configured[B] = new Configured[B] {
+      @annotation.tailrec
+      private[this] def step(v: CfgValue, a: A): Option[B] = f(a)(v) match {
+        case None           => None
+        case Some(Left(a1)) => step(v, a1)
+        case Some(Right(b)) => Some(b)
+      }
+
+      def apply(v: CfgValue): Option[B] = step(v, a)
     }
   }
 

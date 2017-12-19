@@ -174,6 +174,6 @@ case class MutableConfig(root: String, base: BaseConfig) {
         sig <- signal
         _   <- subscribe(p, (k, v) => sig.set((k, v)))
       } yield ()
-    }.flatMap(_ => Stream.force(signal.map(_.discrete))).drop(1) // droping the previously initilized tuple of the signal.
+    }.flatMap(_ => Stream.force(signal.map(_.discrete))).drop(1) // droping the previously initialized tuple of the signal.
   }
 }

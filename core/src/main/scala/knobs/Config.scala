@@ -20,8 +20,9 @@ package knobs
 case class Config(env: Env) {
   def subconfig(g: Name): Config = {
     val pfx = g + (if (g.isEmpty) "" else ".")
-    Config(env.filterKeys(_ startsWith pfx).map {
-      case (key, value) => (key.substring(pfx.length), value)
+    Config(env.collect {
+      case (key, value) if key.startsWith(pfx) =>
+        (key.substring(pfx.length), value)
     })
   }
 
