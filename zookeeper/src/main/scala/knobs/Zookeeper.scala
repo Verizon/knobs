@@ -27,7 +27,8 @@ import scala.concurrent.ExecutionContext
 
 import java.io.File
 
-import cats.effect.IO
+import cats.effect.{Async, Effect, Sync}
+import cats.implicits._
 import fs2.Stream
 
 /**
@@ -48,8 +49,8 @@ object ZooKeeper {
    * With only one event, we prevent multiple reloads occurring simultaneously
    * in `Watched` znodes.
    */
-  def watchEvent(c: CuratorFramework, path: Path): Stream[IO, WatchedEvent] =
-    Stream.eval(IO.async { (k: Either[Throwable, WatchedEvent] => Unit) =>
+  def watchEvent[F[_]](c: CuratorFramework, path: Path)(implicit F: Async[F]): Stream[F, WatchedEvent] =
+    Stream.eval(F.async { (k: Either[Throwable, WatchedEvent] => Unit) =>
       val _ = try {
         c.getData.usingWatcher(new CuratorWatcher {
           def process(p: WatchedEvent) = p.getType match {
@@ -64,16 +65,16 @@ object ZooKeeper {
   implicit def zkResource(implicit ec: ExecutionContext): Watchable[ZNode] = new Watchable[ZNode] {
     def resolve(r: ZNode, child: Path): ZNode =
       r.copy(path = Resource.resolveName(r.path, child))
-    def load(node: Worth[ZNode]) = {
+    def load[F[_]](node: Worth[ZNode])(implicit F: Sync[F]) = {
       val ZNode(c, path) = node.worth
-      Resource.loadFile(node, IO {
+      Resource.loadFile(node, F.delay {
         new String(c.getData.forPath(path).map(_.toChar))
       })
     }
-    def watch(node: Worth[ZNode]) = for {
+    def watch[F[_]](node: Worth[ZNode])(implicit F: Effect[F]) = for {
       ds <- load(node)
       rs <- recursiveImports(node.worth, ds)
-      reloads <- IO { Stream.emits(node.worth +: rs).map {
+      reloads <- F.delay { Stream.emits(node.worth +: rs).map {
         case ZNode(c, path) => watchEvent(c, path).map(_ => ())
       }}
     } yield (ds, reloads.joinUnbounded)
@@ -81,7 +82,7 @@ object ZooKeeper {
     def show(t: ZNode): String = t.toString
   }
 
-  private def doZK(config: List[KnobsResource])(implicit ec: ExecutionContext): IO[(ResourceBox, CuratorFramework)] = {
+  private def doZK[F[_]](config: List[KnobsResource])(implicit F: Effect[F], ec: ExecutionContext): F[(ResourceBox, CuratorFramework)] = {
 
     val retryPolicy = new ExponentialBackoffRetry(1000, 3)
 
@@ -89,8 +90,8 @@ object ZooKeeper {
       cfg <- knobs.loadImmutable(config)
       loc  = cfg.require[String]("zookeeper.connection-string")
       path = cfg.require[String]("zookeeper.path-to-config")
-      c <- IO(CuratorFrameworkFactory.newClient(loc, retryPolicy))
-      _ <- IO(c.start)
+      c <- F.delay(CuratorFrameworkFactory.newClient(loc, retryPolicy))
+      _ <- F.delay(c.start)
     } yield (Watched(ZNode(c, path)), c)
   }
 
@@ -118,7 +119,7 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def withDefault(k: ResourceBox => IO[Unit])(implicit ec: ExecutionContext): IO[Unit] = safe(k)
+  def withDefault[F[_]](k: ResourceBox => F[Unit])(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = safe(k)
 
   /**
    * IO-based API. Works just like `withDefault` except it loads configuration from
@@ -135,52 +136,12 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def fromResource(customConfig: List[KnobsResource])(k: ResourceBox => IO[Unit])(implicit ec: ExecutionContext): IO[Unit] = safe(k, customConfig)
+  def fromResource[F[_]](customConfig: List[KnobsResource])(k: ResourceBox => F[Unit])(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = safe(k, customConfig)
 
-  protected def safe(k: ResourceBox => IO[Unit], config: List[KnobsResource] = null)(implicit ec: ExecutionContext): IO[Unit] = for {
+  protected def safe[F[_]](k: ResourceBox => F[Unit], config: List[KnobsResource] = null)(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = for {
     p <- doZK(config)
     (box, c) = p
     _ <- k(box)
-    _ <- IO(c.close)
+    _ <- F.delay(c.close)
   } yield ()
-
-  /**
-   * Unsafe API. Loads the standard config, just like `withDefault`,
-   * except this returns the resource together with a `IO` that you can
-   * `run` to close the Zookeeper connection at the end of your application.
-   *
-   * Example usage:
-   *
-   * ```
-   * import knobs._
-   *
-   * val (r, close) = ZooKeeper.unsafeDefault
-   * // Application code here
-   * close.run
-   * ```
-   */
-  def unsafeDefault(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) = unsafe()
-
-  /**
-   * Unsafe API. Works just like `unsafeDefault` except it loads configuration from
-   * specified resource
-   *
-   * Example usage:
-   *
-   * ```
-   * import knobs._
-   *
-   * val (r, close) = ZooKeeper.unsafeFromResource(List(Required(ClassPathResource("my-service.conf"))))
-   * // Application code here
-   * close.run
-   * ```
-   */
-  def unsafeFromResource(customConfig: List[KnobsResource])(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) =
-    unsafe(customConfig)
-
-  protected def unsafe(config: List[KnobsResource] = defaultCfg)(implicit ec: ExecutionContext): (ResourceBox, IO[Unit]) = {
-    val (box, c) = doZK(config).unsafeRunSync
-    (box, IO(c.close))
-  }
-
 }

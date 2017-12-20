@@ -31,8 +31,8 @@ object Test extends Properties("Knobs") {
     Gen.chooseNum(Long.MinValue + 1, Long.MaxValue).map(Duration.fromNanos))
 
   def withLoad[A](files: List[KnobsResource])(
-    t: MutableConfig => IO[A]): IO[A] = for {
-      mb <- load(files)
+    t: MutableConfig[IO] => IO[A]): IO[A] = for {
+      mb <- load[IO](files)
       r <- t(mb)
     } yield r
 
@@ -75,7 +75,7 @@ object Test extends Properties("Knobs") {
     } yield p1 && p2 }
 
   lazy val importAsIdentTest: IO[Prop] =
-    load(List(Required(ClassPathResource("import-as-ident.cfg")))).attempt.map(_.fold(
+    load[IO](List(Required(ClassPathResource("import-as-ident.cfg")))).attempt.map(_.fold(
       {
         case ConfigError(_, msg) => msg contains "reserved word (import) used as an identifier"
         case _ => false
@@ -97,7 +97,7 @@ object Test extends Properties("Knobs") {
   lazy val importFromEnvMissingFileTest: IO[Prop] =
     sys.env.get("KNOBS_TEST_DIR") match {
       case Some("knobs-test") =>
-        load(List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
+        load[IO](List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
           case Left(f: java.io.FileNotFoundException) => true
           case _ => false
         }
@@ -107,7 +107,7 @@ object Test extends Properties("Knobs") {
     }
 
   lazy val importFromSysPropTest: IO[Prop] =
-    load(List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
+    load[IO](List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
       {
         case ConfigError(_, msg) => msg.contains("""No such variable "user.dir". Only environment variables are interpolated in import directives.""")
         case x => false
@@ -137,7 +137,7 @@ object Test extends Properties("Knobs") {
 
   // Check that there is one error per resource in the chain, plus one
   lazy val fallbackErrorTest: IO[Prop] =
-    load(List(Required(ClassPathResource("foobar.cfg") or
+    load[IO](List(Required(ClassPathResource("foobar.cfg") or
                        ClassPathResource("foobar.cfg")))).attempt.map(_.fold(
       e => (e.getMessage.toList.filter(_ == '\n').size == 3),
       a => false
@@ -146,7 +146,7 @@ object Test extends Properties("Knobs") {
   // Make sure that loading from a fake (but valid) URI fails with an expected error
   lazy val uriTest: IO[Prop] = {
     import java.net._
-    load(List(Required(
+    load[IO](List(Required(
       URIResource(new URI("http://lolcathost"))))).attempt.map(_.fold(
         {
           case e: UnknownHostException => true
@@ -158,7 +158,7 @@ object Test extends Properties("Knobs") {
 
   // Ensure that the resource is *not* available on a new classloader
   lazy val classLoaderTest: IO[Prop] =
-    load(List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
+    load[IO](List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
       case Left(f: java.io.FileNotFoundException) => true
       case x => false
     }
@@ -194,7 +194,7 @@ object Test extends Properties("Knobs") {
   }
 
   lazy val allCommentsTest: IO[Prop] =
-    load(List(Required(ClassPathResource("all-comments.cfg")))).attempt.map(_.isRight)
+    load[IO](List(Required(ClassPathResource("all-comments.cfg")))).attempt.map(_.isRight)
 
   property("load-pathological-config") = loadTest.unsafeRunSync
 

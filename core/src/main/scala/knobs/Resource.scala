@@ -25,7 +25,7 @@ import scala.collection.JavaConverters._
 
 import cats.Show
 import cats.data.NonEmptyVector
-import cats.effect.{Effect, IO}
+import cats.effect.{Async, Effect, IO, Sync}
 import cats.implicits._
 import fs2.Stream
 import fs2.async.mutable.Topic
@@ -48,11 +48,11 @@ trait Resource[R] extends Show[R] {
   /**
    * Loads a resource, returning a list of config directives in `IO`.
    */
-  def load(path: Worth[R]): IO[List[Directive]]
+  def load[F[_]](path: Worth[R])(implicit F: Sync[F]): F[List[Directive]]
 }
 
 trait Watchable[R] extends Resource[R] {
-  def watch(path: Worth[R]): IO[(List[Directive], Stream[IO, Unit])]
+  def watch[F[_]](path: Worth[R])(implicit F: Effect[F]): F[(List[Directive], Stream[F, Unit])]
 }
 
 /** An existential resource. Equivalent to the (Haskell-style) type `exists r. Resource r ⇒ r` */
@@ -150,8 +150,8 @@ object Resource {
   val notificationPool = pool("knobs-notification-pool")
 
   private val watchService: WatchService = FileSystems.getDefault.newWatchService
-  private val watchStream: Stream[IO, WatchEvent[_]] =
-    Stream.eval(IO.shift(watchPool) *> IO(watchService.take)).flatMap(s =>
+  private def watchStream[F[_]](implicit F: Async[F]): Stream[F, WatchEvent[_]] =
+    Stream.eval(F.shift(watchPool) *> F.delay(watchService.take)).flatMap(s =>
       Stream.emits(s.pollEvents.asScala)).repeat
 
   /** Construct a new boxed resource from a valid `Resource` */
@@ -180,31 +180,33 @@ object Resource {
    * `load` is a `IO` that does the work of turning the resource into a `String`
    * that gets parsed by the `ConfigParser`.
    */
-  def loadFile[R:Resource](path: Worth[R], load: IO[String]): IO[List[Directive]] = {
+  def loadFile[F[_], R:Resource](path: Worth[R], load: F[String])(implicit F: Sync[F]): F[List[Directive]] = {
     import ConfigParser.ParserOps
     for {
       es <- load.attempt
       r <- es.fold(ex =>
         path match {
-          case Required(_) => IO.raiseError(ex)
-          case _ => IO.pure(Nil)
+          case Required(_) => F.raiseError(ex)
+          case _ => F.pure(Nil)
         }, s => for {
-          p <- IO(ConfigParser.topLevel.parse(s)).attempt.flatMap {
+          p <- F.delay(ConfigParser.topLevel.parse(s)).attempt.flatMap[Either[String, List[Directive]]] {
             case Left(ConfigError(_, err)) =>
-              IO.raiseError(ConfigError(path.worth, err))
-            case Left(e)  => IO.raiseError(e)
-            case Right(a) => IO.pure(a)
+              F.raiseError(ConfigError(path.worth, err))
+            case Left(e)  => F.raiseError(e)
+            case Right(a) => F.pure(a)
           }
-          r <- p.fold(err => IO.raiseError(ConfigError(path.worth, err)),
-                      ds  => IO.pure(ds))
+          r <- p.fold[F[List[Directive]]](
+            err => F.raiseError(ConfigError(path.worth, err)),
+            ds  => F.pure(ds)
+          )
         } yield r)
     } yield r
   }
 
-  def failIfNone[A](a: Option[A], msg: String): IO[A] =
-    a.map(IO.pure).getOrElse(IO.raiseError(new RuntimeException(msg)))
+  def failIfNone[F[_], A](a: Option[A], msg: String)(implicit F: Sync[F]): F[A] =
+    a.map(F.pure).getOrElse(F.raiseError(new RuntimeException(msg)))
 
-  def watchEvent(path: P): IO[Stream[IO, WatchEvent[_]]] = {
+  def watchEvent[F[_]](path: P)(implicit F: Async[F]): F[Stream[F, WatchEvent[_]]] = {
     val dir =
       failIfNone(Option(path.getParent),
                  s"File $path has no parent directory. Please provide a canonical file name.")
@@ -214,7 +216,7 @@ object Resource {
 
     for {
       d <- dir
-      _ <- IO(d.register(watchService, ENTRY_MODIFY))
+      _ <- F.delay(d.register(watchService, ENTRY_MODIFY))
       f <- file
     } yield watchStream.filter(_.context == f)
   }
@@ -223,12 +225,12 @@ object Resource {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
 
-    def load(path: Worth[File]) =
-      loadFile(path, IO(scala.io.Source.fromFile(path.worth).mkString))
+    def load[F[_]](path: Worth[File])(implicit F: Sync[F]) =
+      loadFile(path, F.delay(scala.io.Source.fromFile(path.worth).mkString))
 
     override def show(r: File) = r.toString
 
-    def watch(path: Worth[File]) = for {
+    def watch[F[_]](path: Worth[File])(implicit F: Effect[F]) = for {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
       es <- (path.worth :: rs).traverse(f => watchEvent(f.toPath))
@@ -237,8 +239,8 @@ object Resource {
 
   implicit def uriResource: Resource[URI] = new Resource[URI] {
     def resolve(r: URI, child: String): URI = r resolve new URI(child)
-    def load(path: Worth[URI]) =
-      loadFile(path, IO(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
+    def load[F[_]](path: Worth[URI])(implicit F: Sync[F]) =
+      loadFile(path, F.delay(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
     override def show(r: URI) = r.toString
   }
 
@@ -247,11 +249,11 @@ object Resource {
   implicit def classPathResource: Resource[ClassPath] = new Resource[ClassPath] {
     def resolve(r: ClassPath, child: String) =
       ClassPath(resolveName(r.s, child), r.loader)
-    def load(path: Worth[ClassPath]) = {
+    def load[F[_]](path: Worth[ClassPath])(implicit F: Sync[F]) = {
       val r = path.worth
-      loadFile(path, IO(r.loader.getResourceAsStream(r.s)) flatMap { x =>
-        if (x == null) IO.raiseError(new java.io.FileNotFoundException(r.s + " not found on classpath"))
-        else IO(scala.io.Source.fromInputStream(x).mkString)
+      loadFile(path, F.delay(r.loader.getResourceAsStream(r.s)) flatMap { x =>
+        if (x == null) F.raiseError(new java.io.FileNotFoundException(r.s + " not found on classpath"))
+        else F.delay(scala.io.Source.fromInputStream(x).mkString)
       })
     }
     override def show(r: ClassPath) = {
@@ -269,16 +271,16 @@ object Resource {
       case Exact(s) => Exact(s"$p.$s")
       case Prefix(s) => Prefix(s"$p.$s")
     }
-    def load(path: Worth[Pattern]) = {
+    def load[F[_]](path: Worth[Pattern])(implicit F: Sync[F]) = {
       val pat = path.worth
       for {
-        ds <- IO(sys.props.toMap.filterKeys(pat matches _).map {
+        ds <- F.delay(sys.props.toMap.filterKeys(pat matches _).map {
                    case (k, v) => Bind(k, ConfigParser.value.parse(v).toOption.getOrElse(CfgText(v)))
                  })
         r <- (ds.isEmpty, path) match {
           case (true, Required(_)) =>
-            IO.raiseError(new ConfigError(path.worth, s"Required system properties $pat not present."))
-          case _ => IO.pure(ds.toList)
+            F.raiseError(new ConfigError(path.worth, s"Required system properties $pat not present."))
+          case _ => F.pure(ds.toList)
         }
       } yield r
     }
@@ -294,21 +296,21 @@ object Resource {
       ))
     }
 
-    def load(path: Worth[FallbackChain]) = {
-      def loadReq(r: ResourceBox, f: Throwable => IO[Either[String, List[Directive]]]) =
-        r.R.load(Required(r.resource)).attempt.flatMap(_.fold(f, a => IO.pure(Right(a))))
+    def load[F[_]](path: Worth[FallbackChain])(implicit F: Sync[F]) = {
+      def loadReq(r: ResourceBox, f: Throwable => F[Either[String, List[Directive]]]): F[Either[String, List[Directive]]] =
+        r.R.load(Required(r.resource)).attempt.flatMap(_.fold(f, a => F.pure(Right(a))))
       def formatError(r: ResourceBox, e: Throwable) =
         s"${r.R.show(r.resource)}: ${e.getMessage}"
-      def orAccum(r: ResourceBox, t: IO[Either[String, List[Directive]]]) =
+      def orAccum(r: ResourceBox, t: F[Either[String, List[Directive]]]) =
         loadReq(r, e1 => t.map(_.leftMap(e2 => s"\n${formatError(r, e1)}$e2")))
-      path.worth.toVector.foldRight[IO[Either[String, List[Directive]]]](
+      path.worth.toVector.foldRight[F[Either[String, List[Directive]]]](
         if (path.isRequired)
-          IO.pure(Left(s"\nKnobs failed to load ${path.worth.show}"))
+          F.pure(Left(s"\nKnobs failed to load ${path.worth.show}"))
         else
-          IO.pure(Right(List[Directive]()))
+          F.pure(Right(List[Directive]()))
       )(orAccum).flatMap(_.fold(
-        e => IO.raiseError(ConfigError(path.worth, e)),
-        IO.pure(_)
+        e => F.raiseError(ConfigError(path.worth, e)),
+        F.pure(_)
       ))
     }
     override def show(r: FallbackChain) = {

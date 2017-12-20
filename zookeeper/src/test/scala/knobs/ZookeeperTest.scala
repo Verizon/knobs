@@ -41,7 +41,7 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     val c = CuratorFrameworkFactory.newClient(loc, retryPolicy)
     c.start
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
-    val n = load(List(ZNode(c, "/knobs.cfg").required)).flatMap(cfg =>
+    val n = load[IO](List(ZNode(c, "/knobs.cfg").required)).flatMap(cfg =>
       cfg.require[Int]("foo")).unsafeRunSync
     c.close
     server.close
@@ -57,8 +57,8 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
     val latch = new CountDownLatch(1)
     val prg = for {
-      ref <- IORef(0)
-      cfg <- load(List(Required(Watched(ZNode(c, "/knobs.cfg")))))
+      ref <- IORef[IO, Int](0)
+      cfg <- load[IO](List(Required(Watched(ZNode(c, "/knobs.cfg")))))
       n1 <- cfg.require[Int]("foo")
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(CfgNumber(n))) =>

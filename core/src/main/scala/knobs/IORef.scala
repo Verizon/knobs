@@ -18,27 +18,28 @@ package knobs
 
 import java.util.concurrent.atomic.AtomicReference
 
-import cats.effect.IO
+import cats.effect.Sync
+import cats.implicits._
 
 /** An atomically updatable reference, guarded by the `IO` monad. */
-sealed abstract class IORef[A] {
-  def read: IO[A]
-  def write(value: A): IO[Unit]
-  def atomicModify[B](f: A => (A, B)): IO[B]
-  def modify(f: A => A): IO[Unit] =
+sealed abstract class IORef[F[_], A] {
+  def read: F[A]
+  def write(value: A): F[Unit]
+  def atomicModify[B](f: A => (A, B)): F[B]
+  def modify(f: A => A): F[Unit] =
     atomicModify(a => (f(a), ()))
 }
 
 object IORef {
-  def apply[A](value: A): IO[IORef[A]] = IO { new IORef[A] {
+  def apply[F[_], A](value: A)(implicit F: Sync[F]): F[IORef[F, A]] = F.delay { new IORef[F, A] {
     val ref = new AtomicReference(value)
-    def read = IO { ref.get }
-    def write(value: A) = IO { ref.set(value) }
+    def read = F.delay(ref.get)
+    def write(value: A) = F.delay(ref.set(value))
     def atomicModify[B](f: A => (A, B)) = for {
       a <- read
       (a2, b) = f(a)
-      p <- IO { ref.compareAndSet(a, a2) }
-      r <- if (p) IO.pure(b) else atomicModify(f)
+      p <- F.delay(ref.compareAndSet(a, a2))
+      r <- if (p) F.pure(b) else atomicModify(f)
     } yield r
   } }
 }

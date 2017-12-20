@@ -34,9 +34,9 @@ object FileWatcherTests extends Properties("FileWatch") {
     val mutantPath = Paths.get(mutantUri)
     val latch = new CountDownLatch(1)
     val prg = for {
-      ref <- IORef("")
+      ref <- IORef[IO, String]("")
       _   <- IO(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
-      cfg <- load(List(Required(FileResource(mutantPath.toFile))))
+      cfg <- load[IO](List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(t@CfgText(s))) =>
           ref.write(t.pretty).flatMap(_ => IO(latch.countDown))

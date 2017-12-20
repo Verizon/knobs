@@ -16,20 +16,21 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import cats.effect.IO
+import cats.effect.Effect
+import cats.implicits._
 import fs2.Stream
 import fs2.async.signalOf
 
 import scala.concurrent.ExecutionContext
 
 /** Mutable, reloadable, configuration data */
-case class MutableConfig(root: String, base: BaseConfig) {
+case class MutableConfig[F[_]](root: String, base: BaseConfig[F])(implicit F: Effect[F]) {
 
   /**
    * Gives a `MutableConfig` corresponding to just a single group of the
    * original `MutableConfig`. The subconfig can be used just like the original.
    */
-  def subconfig(g: Name): MutableConfig =
+  def subconfig(g: Name): MutableConfig[F] =
     MutableConfig(root + g + (if (g.isEmpty) "" else "."), base)
 
   /**
@@ -39,20 +40,20 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * just the local section. Any overridden properties set with `addProperties`
    * will disappear.
    */
-  lazy val reload: IO[Unit] = base.reload
+  lazy val reload: F[Unit] = base.reload
 
   /**
    * Add additional files to this `MutableConfig`, causing it to be reloaded to
    * add their contents.
    */
-  def add(paths: List[KnobsResource]): IO[Unit] =
+  def add(paths: List[KnobsResource]): F[Unit] =
     addGroups(paths.map(x => ("", x)))
 
   /**
    * Add additional files to named groups in this `MutableConfig`, causing it to be
    * reloaded to add their contents.
    */
-  def addGroups(paths: List[(Name, KnobsResource)]): IO[Unit] = {
+  def addGroups(paths: List[(Name, KnobsResource)]): F[Unit] = {
     def fix[A](p: (String, A)) = (addDot(p._1), p._2)
     for {
       _ <- base.paths.modify(prev => prev ++ paths.map(fix))
@@ -65,7 +66,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addEnv(props: Env): IO[Unit] = for {
+  def addEnv(props: Env): F[Unit] = for {
     p <- base.cfgMap.atomicModify { m =>
       val mp = m ++ props.map { case (k, v) => (root + k, v) }
       (mp, (m, mp))
@@ -81,7 +82,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addStrings(props: Map[Name, String]): IO[Unit] = addMap(props)
+  def addStrings(props: Map[Name, String]): F[Unit] = addMap(props)
 
   /**
    * Add the properties in the given `Map` to this config. The values
@@ -89,7 +90,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Note: If this config is reloaded from source, these additional properties
    * will be lost.
    */
-  def addMap[V:Valuable](props: Map[Name, V]): IO[Unit] =
+  def addMap[V:Valuable](props: Map[Name, V]): F[Unit] =
     addEnv(props.toList.foldLeft(Map[Name, CfgValue]()) {
       case (m, (k, v)) => m + (k -> Valuable[V].convert(v))
     })
@@ -99,7 +100,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * be converted to the desired type, return the converted value, otherwise
    * `None`.
    */
-  def lookup[A:Configured](name: Name): IO[Option[A]] =
+  def lookup[A:Configured](name: Name): F[Option[A]] =
     base.cfgMap.read.map(_.get(root + name).flatMap(_.convertTo[A]))
 
 
@@ -108,7 +109,7 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * be converted to the desired type, return the converted value, otherwise
    * return the default value.
    */
-  def lookupDefault[A:Configured](default: A, name: Name): IO[A] =
+  def lookupDefault[A:Configured](default: A, name: Name): F[A] =
     lookup(name).map(_.getOrElse(default))
 
   /**
@@ -116,9 +117,9 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * be converted to the desired type, return the converted value, otherwise
    * throw a `KeyError`.
    */
-  def require[A:Configured](name: Name): IO[A] = for {
+  def require[A:Configured](name: Name): F[A] = for {
     v <- lookup(name)
-    r <- v.map(IO.pure).getOrElse(
+    r <- v.map(F.pure).getOrElse(
       getEnv.map(_.get(name).fold(throw KeyError(name))(v => throw ValueError(name, v)))
     )
   } yield r
@@ -127,12 +128,12 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Perform a simple dump of a `MutableConfig` to the console.
    */
   @deprecated("Use `pretty` instead", "2.2")
-  def display: IO[Unit] = pretty.flatMap(x => IO(println(x)))
+  def display: F[Unit] = pretty.flatMap(x => F.delay(println(x)))
 
   /**
    * Perform a simple dump of a `MutableConfig` to a `String`.
    */
-  def pretty: IO[String] =
+  def pretty: F[String] =
     base.cfgMap.read.map(_.flatMap {
       case (k, v) if (k startsWith root) => Some(s"$k = ${v.pretty}")
       case _ => None
@@ -142,19 +143,19 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * Fetch the `Map` that maps names to values. Turns the config into a pure
    * value disconnected from the file resources it came from.
    */
-  def getEnv: IO[Env] = immutable.map(_.env)
+  def getEnv: F[Env] = immutable.map(_.env)
 
   /**
    * Get an immutable `Config` from of the current state of this
    * `MutableConfig`.
    */
-  def immutable: IO[Config] = base at root
+  def immutable: F[Config] = base at root
 
   /**
    * Subscribe to notifications. The given handler will be invoked when any
    * change occurs to a configuration property that matches the pattern.
    */
-  def subscribe(p: Pattern, h: ChangeHandler): IO[Unit] =
+  def subscribe(p: Pattern, h: ChangeHandler[F]): F[Unit] =
     base.subs.modify { map =>
       map.get(p.local(root)) match {
         case None           => map + ((p.local(root), List(h)))
@@ -166,8 +167,8 @@ case class MutableConfig(root: String, base: BaseConfig) {
    * A process that produces chages to the configuration properties that match
    * the given pattern
    */
-  def changes(p: Pattern)(implicit ex: ExecutionContext): Stream[IO, (Name, Option[CfgValue])] = {
-    val signal = signalOf[IO, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
+  def changes(p: Pattern)(implicit ex: ExecutionContext): Stream[F, (Name, Option[CfgValue])] = {
+    val signal = signalOf[F, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
 
     Stream.eval {
       for {

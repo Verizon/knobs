@@ -16,29 +16,30 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import cats.effect.IO
+import cats.effect.Effect
+import cats.implicits._
 
 /**
  * Global configuration data. This is the top-level config from which
  * `Config` values are derived by choosing a root location.
  */
-case class BaseConfig(paths: IORef[List[(Name, KnobsResource)]],
-                      cfgMap: IORef[Env],
-                      subs: IORef[Map[Pattern, List[ChangeHandler]]]) {
+case class BaseConfig[F[_]: Effect](paths: IORef[F, List[(Name, KnobsResource)]],
+                      cfgMap: IORef[F, Env],
+                      subs: IORef[F, Map[Pattern, List[ChangeHandler[F]]]]) {
 
   /**
    * Get the `MutableConfig` at the given root location.
    */
-  def mutableAt(root: String): MutableConfig =
+  def mutableAt(root: String): MutableConfig[F] =
     MutableConfig("", this).subconfig(root)
 
   /**
    * Get the `Config` at the given root location
    */
-  def at(root: String): IO[Config] =
+  def at(root: String): F[Config] =
     cfgMap.read.map(Config(_).subconfig(root))
 
-  lazy val reload: IO[Unit] = for {
+  lazy val reload: F[Unit] = for {
     ps <- paths.read
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
     m  <- cfgMap.atomicModify(m => (mp, m))

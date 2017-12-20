@@ -45,8 +45,9 @@ To require the file "foo.cfg" from the classpath:
 ```tut
 import knobs.{Required,ClassPathResource,Config}
 import cats.effect.IO
+import scala.concurrent.ExecutionContext.Implicits.global
 
-val cfg: IO[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   Required(ClassPathResource("foo.cfg")) :: Nil)
 ```
 
@@ -56,7 +57,7 @@ This of course assumes that the `foo.cfg` file is located in the root of the cla
 import knobs.{Required,ClassPathResource,Config}
 import cats.effect.IO
 
-val cfg: IO[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(ClassPathResource("subfolder/foo.cfg")) :: Nil)
 ```
 
@@ -71,7 +72,7 @@ import java.io.File
 import knobs.{Required,FileResource,Config}
 import cats.effect.IO
 
-val cfg: IO[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(FileResource(new File("/path/to/foo.cfg"))) :: Nil)
 ```
 
@@ -85,7 +86,7 @@ Although you usually wouldn't want to load your entire configuration from Java s
 import knobs.{Required,SysPropsResource,Config,Prefix}
 import cats.effect.IO
 
-val cfg: IO[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(SysPropsResource(Prefix("oncue"))) :: Nil)
 ```
 
@@ -193,7 +194,7 @@ Once you have a `Config` instance loaded, and you want to lookup some values fro
 import knobs._
 
 // load some configuration
-val config: IO[Config] = loadImmutable(
+val config: IO[Config] = loadImmutable[IO](
   Required(FileResource(new File("someFile.cfg")) or
   ClassPathResource("someName.cfg")) :: Nil
 )
@@ -243,7 +244,7 @@ Additionally, both on-disk and ZooKeeper files support _automatic_ reloading of 
 You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
 
 ```tut
-val cfg: IO[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
+val cfg: IO[MutableConfig[IO]] = load[IO](Required(FileResource(new File("someFile.cfg"))) :: Nil)
 
 cfg.flatMap(_.subscribe (Prefix("somePrefix.*"), {
   case (n, None) => IO { println(s"The parameter $n was removed") }
@@ -261,7 +262,7 @@ If you're running *Knobs* from within an application that is hosted on AWS, you'
 
 ```tut
 val c1: IO[Config] =
-  loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
+  loadImmutable[IO](Required(FileResource(new File("someFile"))) :: Nil)
 
 val cfg = for {
   a <- c1
