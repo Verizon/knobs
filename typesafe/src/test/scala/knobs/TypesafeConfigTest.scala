@@ -16,13 +16,14 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
+import cats.effect.IO
 import com.typesafe.config.ConfigFactory
 import org.scalacheck.Properties
 
 object TypesafeConfigTest extends Properties("Typesafe") {
 
   property("load-default-config") = {
-    Typesafe.config.map { cfg =>
+    Typesafe.defaultConfig[IO].map { cfg =>
       cfg.lookup[Int]("foo.bar.an_int") == Some(1) &&
       cfg.lookup[String]("foo.bar.a_str") == Some("str") &&
       cfg.lookup[Boolean]("foo.bar.a_bool") == Some(true) &&
@@ -45,7 +46,7 @@ object TypesafeConfigTest extends Properties("Typesafe") {
         |}
       """.stripMargin)
 
-      Typesafe.config(customCfg).map { cfg =>
+      Typesafe.config[IO](customCfg).map { cfg =>
         cfg.lookup[Int]("baz.qux.an_int") == Some(2) &&
         cfg.lookup[String]("baz.qux.a_str") == Some("rts") &&
         cfg.lookup[Boolean]("baz.qux.a_bool") == Some(false) &&

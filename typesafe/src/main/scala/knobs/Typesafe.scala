@@ -15,18 +15,46 @@
 //:
 //: ----------------------------------------------------------------------------
 package knobs
+
+import cats.effect.Sync
+import cats.implicits._
 import com.typesafe.config.{Config => TC, _}
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
-import cats.effect.IO
 
+/**
+  * Adapts a Typesafe Config to a Knobs Config.
+  * 
+  * Caution: Typesafe Config's grammar does not distinguish a duration
+  * type from other String values.  This means that durations are not
+  * extracted in knobs in the same way as using the native Typesafe
+  * Config API:
+  * 
+  * {{{
+  * scala> val ts = ConfigFactory.parseString(""" "dur" = 3 seconds """)
+  * ts: com.typesafe.config.Config = Config(SimpleConfigObject({"dur":"3 seconds"}))
+  * 
+  * scala> ts.getDuration("dur", java.util.concurrent.TimeUnit.MILLISECONDS)
+  * res0: Long = 3000
+  * 
+  * scala> val k = knobs.Typesafe.config[IO](ts).unsafePerformSync
+  * k: knobs.Config = Config(Map(dur -> CfgText(3 seconds)))
+  * 
+  * scala> k.lookup[Duration]("dur")
+  * res1: Option[scala.concurrent.duration.Duration] = None
+  * 
+  * scala> k.lookup[String]("dur")
+  * res2: Option[String] = Some(3 seconds)
+  * }}}
+  */
 object Typesafe {
-  def config: IO[Config] = IO {
-    val cfg = ConfigFactory.load
-    Config(convertTypesafeConfig(cfg))
-  }
+  /** Loads the default Typesafe Config via `Config.load` and adapts to
+    * a Knobs Config. */
+  def defaultConfig[F[_]](implicit F: Sync[F]): F[Config] =
+    F.delay(ConfigFactory.load).flatMap(config(_))
 
-  def config(cfg: TC): IO[Config] = IO {
+  /** Adapts the specified Typesafe Config to a Knobs Config */
+  def config[F[_]](cfg: TC)(implicit F: Sync[F]): F[Config] = F.delay {
     Config(convertTypesafeConfig(cfg))
   }
 
