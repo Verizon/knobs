@@ -98,7 +98,7 @@ object Test extends Properties("Knobs") {
     sys.env.get("KNOBS_TEST_DIR") match {
       case Some("knobs-test") =>
         load[IO](List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
-          case Left(f: java.io.FileNotFoundException) => true
+          case Left(_: java.io.FileNotFoundException) => true
           case _ => false
         }
       case oops =>
@@ -110,7 +110,7 @@ object Test extends Properties("Knobs") {
     load[IO](List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
       {
         case ConfigError(_, msg) => msg.contains("""No such variable "user.dir". Only environment variables are interpolated in import directives.""")
-        case x => false
+        case _ => false
       },
       x => false
     ))
@@ -149,7 +149,7 @@ object Test extends Properties("Knobs") {
     load[IO](List(Required(
       URIResource(new URI("http://lolcathost"))))).attempt.map(_.fold(
         {
-          case e: UnknownHostException => true
+          case _: UnknownHostException => true
           case _ => false
         },
         _ => false
@@ -159,8 +159,8 @@ object Test extends Properties("Knobs") {
   // Ensure that the resource is *not* available on a new classloader
   lazy val classLoaderTest: IO[Prop] =
     load[IO](List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
-      case Left(f: java.io.FileNotFoundException) => true
-      case x => false
+      case Left(_: java.io.FileNotFoundException) => true
+      case _ => false
     }
 
   lazy val immutableConfigValueErrorTest: IO[Prop] = {
@@ -169,7 +169,7 @@ object Test extends Properties("Knobs") {
       mcfg => mcfg.immutable.map(
         cfg => Either.catchNonFatal(cfg.require[String]("test.immutable.value.error")).fold(
           {
-            case ValueError(n, v) => true
+            case ValueError(_, _) => true
             case _ => false
           },
           _ => false
@@ -184,7 +184,7 @@ object Test extends Properties("Knobs") {
       cfg.require[String]("test.mutable.value.error").attempt.map(
         _.fold(
           {
-            case ValueError(n, v) => true
+            case ValueError(_, _) => true
             case _ => false
           },
           _ => false

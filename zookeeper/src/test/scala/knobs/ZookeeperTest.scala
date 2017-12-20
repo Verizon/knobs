@@ -21,10 +21,8 @@ import cats.effect.IO
 import fs2.async.Ref
 import java.util.concurrent.CountDownLatch
 import org.apache.curator.framework._
-import org.apache.curator.framework.api._
 import org.apache.curator.retry._
 import org.apache.curator.test._
-import org.apache.zookeeper._
 import org.scalacheck.Prop._
 import org.scalacheck._
 import scala.concurrent.ExecutionContext.Implicits.global

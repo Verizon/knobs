@@ -18,7 +18,7 @@ package knobs
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
-import cats.{Monad, StackSafeMonad}
+import cats.Monad
 import cats.implicits._
 
 /**
@@ -33,7 +33,10 @@ trait Configured[A] {
 object Configured {
 
   // second parameter (of any non-Unit) is required to get around SAM-derived ambiguities
-  def apply[A](implicit A: Configured[A], T: Trivial): Configured[A] = A
+  def apply[A](implicit A: Configured[A], T: Trivial): Configured[A] = {
+    val _ = T
+    A
+  }
 
   def apply[A](f: CfgValue => Option[A]): Configured[A] = new Configured[A] {
     def apply(v: CfgValue) = f(v)

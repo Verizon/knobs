@@ -25,11 +25,9 @@ import scala.collection.JavaConverters._
 
 import cats.Show
 import cats.data.NonEmptyVector
-import cats.effect.{Async, Effect, IO, Sync}
+import cats.effect.{Async, Effect, Sync}
 import cats.implicits._
 import fs2.Stream
-import fs2.async.mutable.Topic
-import fs2.async
 
 import scala.concurrent.ExecutionContext
 
@@ -95,7 +93,10 @@ object FileResource {
    * Optionally creates a process to watch changes to the file and
    * reload any `MutableConfig` if it has changed.
    */
-  def apply(f: File, watched: Boolean = true)(implicit ec: ExecutionContext): ResourceBox = Watched(f.getCanonicalFile)
+  def apply(f: File, watched: Boolean = true)(implicit ec: ExecutionContext): ResourceBox = {
+    val _ = watched
+    Watched(f.getCanonicalFile)
+  }
 
   /**
    * Creates a new resource that loads a configuration from a file.

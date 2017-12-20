@@ -14,9 +14,6 @@
 //:   limitations under the License.
 //:
 //: ----------------------------------------------------------------------------
-import java.util.concurrent.ExecutorService
-
-import cats._
 import cats.effect._
 import cats.implicits._
 import fs2.Stream
@@ -159,7 +156,7 @@ package object knobs {
         case Some(CfgNumber(r)) =>
           if (r % 1 == 0) F.pure(r.toInt.toString)
           else F.pure(r.toString)
-        case Some(x) =>
+        case Some(_) =>
           F.raiseError(new Exception(s"type error: $name must be a number or a string"))
         case _ => for {
           // added because lots of sys-admins think software is case unaware. Doh!

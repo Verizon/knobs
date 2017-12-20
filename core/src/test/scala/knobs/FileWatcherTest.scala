@@ -21,10 +21,7 @@ import java.nio.file.{ Files, Paths }
 import java.util.concurrent.CountDownLatch
 import org.scalacheck._
 import org.scalacheck.Prop._
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.io.Source
-import Resource._
 
 import cats.effect.IO
 
@@ -39,7 +36,7 @@ object FileWatcherTests extends Properties("FileWatch") {
       _   <- IO(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
       cfg <- load[IO](List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
-        case ("foo", Some(t@CfgText(s))) =>
+        case ("foo", Some(t: CfgText)) =>
           ref.setSync(t.pretty).flatMap(_ => IO(latch.countDown))
         case _ => {
           IO(latch.countDown)

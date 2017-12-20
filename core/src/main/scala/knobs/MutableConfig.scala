@@ -20,7 +20,7 @@ import cats._
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import fs2.Stream
-import fs2.async.{Ref, signalOf}
+import fs2.async.signalOf
 
 import scala.concurrent.ExecutionContext
 

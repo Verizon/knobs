@@ -22,10 +22,7 @@ import org.apache.curator.retry._
 import org.apache.zookeeper.WatchedEvent
 import org.apache.zookeeper.Watcher.Event.EventType._
 
-import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext
-
-import java.io.File
 
 import cats.effect.{Async, Effect, Sync}
 import cats.implicits._
@@ -39,9 +36,6 @@ import fs2.Stream
 case class ZNode(client: CuratorFramework, path: Path)
 
 object ZooKeeper {
-  private def defaultCfg =
-    List(Required(ClassPathResource("oncue/zookeeper.cfg")))
-
   /**
    * A process that produces an event when the given path's data changes.
    * This process only contains a single event.

@@ -16,10 +16,10 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import cats.{Monad, MonadError}
+import cats.MonadError
 import cats.effect.Sync
 import cats.implicits._
-import java.net.{URL,URLConnection}
+import java.net.URL
 import scala.io.Source
 
 /**

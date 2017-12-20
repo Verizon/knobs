@@ -50,7 +50,7 @@ object Typesafe {
             Some(CfgNumber(unwrap[Number](v).doubleValue))
           case ConfigValueType.STRING =>
             Some(CfgText(unwrap[String](v)))
-          case x =>
+          case _ =>
             sys.error(s"Can't convert $v to a CfgValue")
         }
       }
@@ -75,7 +75,7 @@ object Typesafe {
                 CfgNumber(cfg.getNumber(k).doubleValue)
               case ConfigValueType.STRING =>
                 CfgText(cfg.getString(k))
-              case x => sys.error(s"Can't convert $v to a CfgValue")
+              case _ => sys.error(s"Can't convert $v to a CfgValue")
             }
             m + (k -> convert(v))
         }

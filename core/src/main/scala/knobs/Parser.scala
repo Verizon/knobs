@@ -16,8 +16,6 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import language.higherKinds._
-
 import cats.implicits._
 import scala.concurrent.duration.Duration
 
