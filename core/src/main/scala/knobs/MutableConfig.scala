@@ -20,7 +20,7 @@ import cats._
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import fs2.Stream
-import fs2.async.signalOf
+import fs2.async.{Ref, signalOf}
 
 import scala.concurrent.ExecutionContext
 
@@ -68,12 +68,12 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * will be lost.
    */
   def addEnv(props: Env)(implicit F: Effect[F]): F[Unit] = for {
-    p <- base.cfgMap.atomicModify { m =>
+    p <- base.cfgMap.modify2 { m =>
       val mp = m ++ props.map { case (k, v) => (root + k, v) }
       (mp, (m, mp))
     }
-    (m, mp) = p
-    subs <- base.subs.read
+    (_, (m, mp)) = p
+    subs <- base.subs.get
     _ <- notifySubscribers(m, mp, subs)
   } yield ()
 
@@ -102,7 +102,7 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * `None`.
    */
   def lookup[A:Configured](name: Name)(implicit F: Functor[F]): F[Option[A]] =
-    base.cfgMap.read.map(_.get(root + name).flatMap(_.convertTo[A]))
+    base.cfgMap.get.map(_.get(root + name).flatMap(_.convertTo[A]))
 
 
   /**
@@ -135,7 +135,7 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * Perform a simple dump of a `MutableConfig` to a `String`.
    */
   def pretty(implicit F: Functor[F]): F[String] =
-    base.cfgMap.read.map(_.flatMap {
+    base.cfgMap.get.map(_.flatMap {
       case (k, v) if (k startsWith root) => Some(s"$k = ${v.pretty}")
       case _ => None
     }.mkString("\n"))
@@ -156,13 +156,13 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * Subscribe to notifications. The given handler will be invoked when any
    * change occurs to a configuration property that matches the pattern.
    */
-  def subscribe(p: Pattern, h: ChangeHandler[F]): F[Unit] =
+  def subscribe(p: Pattern, h: ChangeHandler[F])(implicit F: Apply[F]): F[Unit] =
     base.subs.modify { map =>
       map.get(p.local(root)) match {
         case None           => map + ((p.local(root), List(h)))
         case Some(existing) => map + ((p.local(root), existing ++ List(h)))
       }
-    }
+    }.void
 
   /**
    * A process that produces chages to the configuration properties that match

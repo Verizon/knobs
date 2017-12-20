@@ -16,6 +16,7 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
+import fs2.async.Ref
 import java.nio.file.{ Files, Paths }
 import java.util.concurrent.CountDownLatch
 import org.scalacheck._
@@ -34,12 +35,12 @@ object FileWatcherTests extends Properties("FileWatch") {
     val mutantPath = Paths.get(mutantUri)
     val latch = new CountDownLatch(1)
     val prg = for {
-      ref <- IORef[IO, String]("")
+      ref <- Ref[IO, String]("")
       _   <- IO(Files.write(mutantPath, "foo = \"bletch\"\n".getBytes))
       cfg <- load[IO](List(Required(FileResource(mutantPath.toFile))))
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(t@CfgText(s))) =>
-          ref.write(t.pretty).flatMap(_ => IO(latch.countDown))
+          ref.setSync(t.pretty).flatMap(_ => IO(latch.countDown))
         case _ => {
           IO(latch.countDown)
         }
@@ -47,7 +48,7 @@ object FileWatcherTests extends Properties("FileWatch") {
       _   <- IO(Thread.sleep(1000))
       _   <- IO(Files.write(mutantPath, "foo = \"bar\"\n".getBytes))
       _   <- IO(latch.await)
-      r   <- ref.read
+      r   <- ref.get
     } yield r == "\"bar\""
     prg.unsafeRunSync
   }

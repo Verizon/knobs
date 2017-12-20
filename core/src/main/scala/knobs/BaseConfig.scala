@@ -19,14 +19,15 @@ package knobs
 import cats._
 import cats.effect.Effect
 import cats.implicits._
+import fs2.async.Ref
 
 /**
  * Global configuration data. This is the top-level config from which
  * `Config` values are derived by choosing a root location.
  */
-case class BaseConfig[F[_]](paths: IORef[F, List[(Name, KnobsResource)]],
-                      cfgMap: IORef[F, Env],
-                      subs: IORef[F, Map[Pattern, List[ChangeHandler[F]]]]) {
+case class BaseConfig[F[_]](paths: Ref[F, List[(Name, KnobsResource)]],
+                      cfgMap: Ref[F, Env],
+                      subs: Ref[F, Map[Pattern, List[ChangeHandler[F]]]]) {
 
   /**
    * Get the `MutableConfig` at the given root location.
@@ -38,14 +39,14 @@ case class BaseConfig[F[_]](paths: IORef[F, List[(Name, KnobsResource)]],
    * Get the `Config` at the given root location
    */
   def at(root: String)(implicit F: Functor[F]): F[Config] =
-    cfgMap.read.map(Config(_).subconfig(root))
+    cfgMap.get.map(Config(_).subconfig(root))
 
   def reload(implicit F: Effect[F]): F[Unit] = for {
-    ps <- paths.read
+    ps <- paths.get
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
-    m  <- cfgMap.atomicModify(m => (mp, m))
-    s  <- subs.read
-    _ <- notifySubscribers(m, mp, s)
+    m  <- cfgMap.modify2(m => (mp, m))
+    s  <- subs.get
+    _ <- notifySubscribers(m._2, mp, s)
   } yield ()
 }
 

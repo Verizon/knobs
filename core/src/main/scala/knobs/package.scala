@@ -20,6 +20,7 @@ import cats._
 import cats.effect._
 import cats.implicits._
 import fs2.Stream
+import fs2.async.Ref
 import scala.concurrent.ExecutionContext
 
 package object knobs {
@@ -105,9 +106,9 @@ package object knobs {
       implicit val implicitPool = pool
       for {
         loaded <- loadFiles(paths.map(_._2))
-        p <- IORef(paths)
-        m <- flatten(paths, loaded).flatMap(IORef(_))
-        s <- IORef(Map[Pattern, List[ChangeHandler[F]]]())
+        p <- Ref(paths)
+        m <- flatten(paths, loaded).flatMap(Ref(_))
+        s <- Ref(Map[Pattern, List[ChangeHandler[F]]]())
         bc = BaseConfig(paths = p, cfgMap = m, subs = s)
         ticks = Stream.emits(loaded.values.map(_._2).toSeq).joinUnbounded
         _ <- F.delay(F.runAsync(ticks.evalMap(_ => bc.reload).run)(_ => IO.unit).unsafeRunSync)
