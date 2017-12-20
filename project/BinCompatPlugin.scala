@@ -19,18 +19,15 @@ import com.typesafe.tools.mima.plugin.MimaPlugin
 
 object BinCompatPlugin extends AutoPlugin {
   object autoImport {
-    val binCompatVersion = settingKey[Option[String]]("version to check binary compatibility against")
   }
 
   import autoImport._
   import MimaPlugin.autoImport._
 
-  override def requires = MimaPlugin && verizon.build.ScalazPlugin
+  override def requires = MimaPlugin
 
   override def trigger = allRequirements
 
   override lazy val projectSettings = Seq(
-    mimaPreviousArtifacts := binCompatVersion.value
-      .fold(Set.empty[ModuleID])(v => Set(organization.value %% name.value % v))
   )
 }

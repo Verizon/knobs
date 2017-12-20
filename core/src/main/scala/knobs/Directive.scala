@@ -17,8 +17,8 @@
 package knobs
 
 /** A directive in a configuration file */
-sealed trait Directive
-case class Import(path: Path) extends Directive
-case class Bind(name: Name, value: CfgValue) extends Directive
-case class Group(name: Name, directives: List[Directive]) extends Directive
+sealed abstract class Directive extends Product with Serializable
+final case class Import(path: Path) extends Directive
+final case class Bind(name: Name, value: CfgValue) extends Directive
+final case class Group(name: Name, directives: List[Directive]) extends Directive
 

@@ -14,15 +14,11 @@ First you need to add the dependency for Knobs to your `build.scala` or your `bu
 libraryDependencies += "io.verizon.knobs" %% "core" % "x.x.+"
 ````
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).)
+Where `x.x` is the desired Knobs version.  Knobs follows traditional [semantic versioning](semver).  Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).
+
+[semver]: https://semver.org/
 
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
-
-If you get an unresolved `scalaz-stream` dependency, you will need to also add the following resolver to SBT:
-
-````
-resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
-````
 
 <a name="resources"></a>
 
@@ -40,9 +36,9 @@ In the general case, configurations are loaded using the `load` and `loadImmutab
 
 Resources can be declared `Required` or `Optional`. Attempting to load a file that does not exist after having declared it `Required` will result in an exception. It is not an error to try to load a nonexistent file if that file is marked `Optional`.
 
-Calling the `loadImmutable` method to load your resources will result in a `Task[Config]`. This is not yet a `Config`, but a `scalaz.concurrent.Task` that can get you a `Config` when you `run` it. See the [Scalaz documentation for the exact semantics](http://docs.typelevel.org/api/scalaz/nightly/index.html#scalaz.concurrent.Task).
+Calling the `loadImmutable` method to load your resources will result in a `IO[Config]`. This is not yet a `Config`, but a `cats.effect.IO` that can get you a `Config` when you `run` it. See the [cats-effect documentation for the exact semantics](https://github.com/typelevel/cats-effect).
 
-The `Task[Config]` is a pure value which, when run, loads your resources and assembles the configuration from them. You can force this to happen and get the `Config` out of it by calling its `run` method, but this is not the recommended usage pattern. The recommended way of accessing the result of a `Task` is to use its `map` and `flatMap` methods (more on this in the specific resource usage and best practices later in this document).
+The `IO[Config]` is a pure value which, when run, loads your resources and assembles the configuration from them. You can force this to happen and get the `Config` out of it by calling its `run` method, but this is not the recommended usage pattern. The recommended way of accessing the result of a `IO` is to use its `map` and `flatMap` methods (more on this in the specific resource usage and best practices later in this document).
 
 ## Classpath Resources
 
@@ -50,9 +46,10 @@ To require the file "foo.cfg" from the classpath:
 
 ```tut
 import knobs.{Required,ClassPathResource,Config}
-import scalaz.concurrent.Task
+import cats.effect.IO
+import scala.concurrent.ExecutionContext.Implicits.global
 
-val cfg: Task[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   Required(ClassPathResource("foo.cfg")) :: Nil)
 ```
 
@@ -60,9 +57,9 @@ This of course assumes that the `foo.cfg` file is located in the root of the cla
 
 ```tut
 import knobs.{Required,ClassPathResource,Config}
-import scalaz.concurrent.Task
+import cats.effect.IO
 
-val cfg: Task[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(ClassPathResource("subfolder/foo.cfg")) :: Nil)
 ```
 
@@ -75,9 +72,9 @@ Classpath resources are immutable and aren't intended to be reloaded in the gene
 ```tut
 import java.io.File
 import knobs.{Required,FileResource,Config}
-import scalaz.concurrent.Task
+import cats.effect.IO
 
-val cfg: Task[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(FileResource(new File("/path/to/foo.cfg"))) :: Nil)
 ```
 
@@ -89,9 +86,9 @@ Although you usually wouldn't want to load your entire configuration from Java s
 
 ```tut
 import knobs.{Required,SysPropsResource,Config,Prefix}
-import scalaz.concurrent.Task
+import cats.effect.IO
 
-val cfg: Task[Config] = knobs.loadImmutable(
+val cfg: IO[Config] = knobs.loadImmutable[IO](
   	Required(SysPropsResource(Prefix("oncue"))) :: Nil)
 ```
 
@@ -138,7 +135,7 @@ Typically you will want to override this at deployment time.
 
 ### Functional Connection Management
 
-For the functional implementation, you essentially have to build your application within the context of the `scalaz.concurrent.Task` that contains the connection to Zookeeper (thus allowing you to subscribe to updates to your configuration from Zookeeper in real time). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will make this more difficult and you'll probably want to use the imperative alternative (see the next section). Otherwise, the usage pattern is the traditional monadic style:
+For the functional implementation, you essentially have to build your application within the context of the `cats.effect.IO` that contains the connection to Zookeeper (thus allowing you to subscribe to updates to your configuration from Zookeeper in real time). If you're dealing with an impure application such as *Play!*, its horrific use of mutable state will make this more difficult and you'll probably want to use the imperative alternative (see the next section). Otherwise, the usage pattern is the traditional monadic style:
 
 ```
 import knobs._
@@ -175,7 +172,7 @@ val cfg = load(Required(r) :: Nil)
 close.run
 ```
 
-Where possible, we recommend designing your applications as a [free monad](http://timperrett.com/2013/11/21/free-monads-part-1/) or use a [reader monad transformer](http://docs.typelevel.org/api/scalaz/nightly/index.html#scalaz.Kleisli) like `Kleisli[Task,Config,A]` to "inject" your configuration to where it's needed. Of course, this is not a choice available to everyone. If your hands are tied with an imperative framework, you can pass Knobs configurations in the same way that you normally do.
+Where possible, we recommend designing your applications as a [free monad](http://timperrett.com/2013/11/21/free-monads-part-1/) or use a [reader monad transformer](https://typelevel.github.io/cats/datatypes/kleisli.html) like `Kleisli[IO,Config,A]` to "inject" your configuration to where it's needed. Of course, this is not a choice available to everyone. If your hands are tied with an imperative framework, you can pass Knobs configurations in the same way that you normally do.
 
 <a name="reading"></a>
 
@@ -199,7 +196,7 @@ Once you have a `Config` instance loaded, and you want to lookup some values fro
 import knobs._
 
 // load some configuration
-val config: Task[Config] = loadImmutable(
+val config: IO[Config] = loadImmutable[IO](
   Required(FileResource(new File("someFile.cfg")) or
   ClassPathResource("someName.cfg")) :: Nil
 )
@@ -207,7 +204,7 @@ val config: Task[Config] = loadImmutable(
 case class Connection(usr: String, pwd: String, port:Option[Int])
 
 // do something with it
-val connection: Task[Connection] =
+val connection: IO[Connection] =
   for {
     cfg <- config
     usr = cfg.require[String]("db.username")
@@ -234,7 +231,7 @@ In addition to these lookup functions, `Config` has two other useful methods:
 
 Alternatively, you can call `load` to get a `MutableConfig`. A `MutableConfig` can be turned into an immutable `Config` by calling its `immutable` method.
 
-`MutableConfig` also comes with a number of methods that allow you to mutate the configuration at runtime (all in the `Task` monad, of course).
+`MutableConfig` also comes with a number of methods that allow you to mutate the configuration at runtime (all in the `IO` monad, of course).
 
 It also allows you to dynamically `reload` it from its resources, which will pick up any changes that have been made to those resources and notify subscribers. See the next section.
 
@@ -249,15 +246,15 @@ Additionally, both on-disk and ZooKeeper files support _automatic_ reloading of 
 You can subscribe to notifications of changes to the configuration with the `subscribe` method. For example, to print to the console whenever a configuration changes:
 
 ```tut
-val cfg: Task[MutableConfig] = load(Required(FileResource(new File("someFile.cfg"))) :: Nil)
+val cfg: IO[MutableConfig[IO]] = load[IO](Required(FileResource(new File("someFile.cfg"))) :: Nil)
 
 cfg.flatMap(_.subscribe (Prefix("somePrefix.*"), {
-  case (n, None) => Task { println(s"The parameter $n was removed") }
-  case (n, Some(v)) => Task { println(s"The parameter $n has a new value: $v") }
+  case (n, None) => IO { println(s"The parameter $n was removed") }
+  case (n, Some(v)) => IO { println(s"The parameter $n has a new value: $v") }
 }))
 ```
 
-You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [scalaz-stream](http://github.com/scalaz/scalaz-stream) `Process[Task, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
+You can also get a stream of changes with `changes(p)` where `p` is some `Pattern` (either a `prefix` or an `exact` pattern). This gives you a [FS2](https://github.com/functional-streams-for-scala/fs2) `Stream[IO, (Name, Option[CfgValue])]` of configuration bindings that match the pattern.
 
 <a name="aws"></a>
 
@@ -266,8 +263,8 @@ You can also get a stream of changes with `changes(p)` where `p` is some `Patter
 If you're running *Knobs* from within an application that is hosted on AWS, you're in luck! *Knobs* comes with automatic support for learning about its surrounding environment and can provide a range of useful configuration settings. For example:
 
 ```tut
-val c1: Task[Config] =
-  loadImmutable(Required(FileResource(new File("someFile"))) :: Nil)
+val c1: IO[Config] =
+  loadImmutable[IO](Required(FileResource(new File("someFile"))) :: Nil)
 
 val cfg = for {
   a <- c1

@@ -16,13 +16,12 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.std.string._
-import scalaz.syntax.equal._
+import cats.implicits._
 
 /**
   * A pattern that matches a `Name` either exactly or as a prefix.
   */
-sealed trait Pattern {
+sealed abstract class Pattern extends Product with Serializable {
   final def local(pfx: String) = this match {
     case Exact(s) => Exact(pfx ++ s)
     case Prefix(s) => Prefix(pfx ++ s)
@@ -34,13 +33,13 @@ sealed trait Pattern {
 }
 
 /** An exact match */
-case class Exact(name: Name) extends Pattern
+final case class Exact(name: Name) extends Pattern
 
 /**
  * A prefix match. Given `Prefix("foo")`, this will match
  * `"foo.bar"`, but not `"foo"` or `"foobar"`.
  */
-case class Prefix(name: Name) extends Pattern
+final case class Prefix(name: Name) extends Pattern
 
 object Pattern {
   /**

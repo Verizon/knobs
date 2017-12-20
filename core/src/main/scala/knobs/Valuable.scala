@@ -16,12 +16,12 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-sealed trait Valuable[V] {
+sealed abstract class Valuable[V] {
   def convert(v: V): CfgValue
 }
 
 object Valuable {
-  def apply[V:Valuable]: Valuable[V] = implicitly[Valuable[V]]
+  def apply[V](implicit V: Valuable[V]): Valuable[V] = V
 
   implicit val stringValue: Valuable[String] = new Valuable[String] {
     def convert(v: String) = {

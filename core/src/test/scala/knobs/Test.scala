@@ -17,11 +17,11 @@
 package knobs
 
 import org.scalacheck._
-import scalaz.concurrent.Task
 import Prop._
 import scala.concurrent.duration._
-import compatibility._
-import scalaz.\/
+
+import cats.effect.IO
+import cats.implicits._
 
 object Test extends Properties("Knobs") {
 
@@ -31,12 +31,12 @@ object Test extends Properties("Knobs") {
     Gen.chooseNum(Long.MinValue + 1, Long.MaxValue).map(Duration.fromNanos))
 
   def withLoad[A](files: List[KnobsResource])(
-    t: MutableConfig => Task[A]): Task[A] = for {
-      mb <- load(files)
+    t: MutableConfig[IO] => IO[A]): IO[A] = for {
+      mb <- load[IO](files)
       r <- t(mb)
     } yield r
 
-  lazy val loadTest: Task[Prop] =
+  lazy val loadTest: IO[Prop] =
     withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
       aa <- cfg.lookup[Int]("aa")
       ab <- cfg.lookup[String]("ab")
@@ -60,13 +60,13 @@ object Test extends Properties("Knobs") {
           (fdu == Some(5.seconds)) :| "finite duration property"
     }
 
-  lazy val interpTest: Task[Prop] =
+  lazy val interpTest: IO[Prop] =
     withLoad(List(Required(ClassPathResource("pathological.cfg")))) { cfg => for {
-      home <- Task.delay(sys.env.get("HOME"))
+      home <- IO(sys.env.get("HOME"))
       cfgHome <- cfg.lookup[String]("ba")
     } yield cfgHome == home }
 
-  lazy val importTest: Task[Prop] =
+  lazy val importTest: IO[Prop] =
     withLoad(List(Required(ClassPathResource("import.cfg")))) { cfg => for {
       aa <- cfg.lookup[Int]("x.aa")
       p1 = (aa == Some(1)) :| "simple"
@@ -74,8 +74,8 @@ object Test extends Properties("Knobs") {
       p2 = (acx == Some(1)) :| "nested"
     } yield p1 && p2 }
 
-  lazy val importAsIdentTest: Task[Prop] =
-    load(List(Required(ClassPathResource("import-as-ident.cfg")))).attempt.map(_.fold(
+  lazy val importAsIdentTest: IO[Prop] =
+    load[IO](List(Required(ClassPathResource("import-as-ident.cfg")))).attempt.map(_.fold(
       {
         case ConfigError(_, msg) => msg contains "reserved word (import) used as an identifier"
         case _ => false
@@ -83,7 +83,7 @@ object Test extends Properties("Knobs") {
       _ => false
     ))
 
-  lazy val importFromEnvTest: Task[Prop] =
+  lazy val importFromEnvTest: IO[Prop] =
     sys.env.get("KNOBS_TEST_DIR") match {
       case Some("knobs-test") =>
         withLoad(List(Required(ClassPathResource("import-from-env.cfg")))) { cfg => for {
@@ -94,11 +94,11 @@ object Test extends Properties("Knobs") {
         sys.error(s"Test assumes that KNOBS_TEST_DIR environment variable is set to 'knobs-test', was $oops")
     }
 
-  lazy val importFromEnvMissingFileTest: Task[Prop] =
+  lazy val importFromEnvMissingFileTest: IO[Prop] =
     sys.env.get("KNOBS_TEST_DIR") match {
       case Some("knobs-test") =>
-        load(List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
-          case scalaz.-\/(f: java.io.FileNotFoundException) => true
+        load[IO](List(Required(ClassPathResource("import-from-env-missing-file.cfg")))).attempt.map {
+          case Left(_: java.io.FileNotFoundException) => true
           case _ => false
         }
       case oops =>
@@ -106,50 +106,50 @@ object Test extends Properties("Knobs") {
         sys.error(s"Test assumes that KNOBS_TEST_DIR environment variable is set to 'knobs-test', was $oops")
     }
 
-  lazy val importFromSysPropTest: Task[Prop] =
-    load(List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
+  lazy val importFromSysPropTest: IO[Prop] =
+    load[IO](List(Required(ClassPathResource("import-from-sys-prop.cfg")))).attempt.map(_.fold(
       {
         case ConfigError(_, msg) => msg.contains("""No such variable "user.dir". Only environment variables are interpolated in import directives.""")
-        case x => false
+        case _ => false
       },
       x => false
     ))
 
-  lazy val loadPropertiesTest: Task[Prop] =
+  lazy val loadPropertiesTest: IO[Prop] =
     withLoad(List(Required(SysPropsResource(Prefix("path"))))) { cfg =>
       cfg.lookup[String]("path.separator").map(_.isDefined)
     }
 
-  lazy val propertiesSubconfigTest: Task[Prop] =
+  lazy val propertiesSubconfigTest: IO[Prop] =
     withLoad(List(Required(SysPropsResource(Prefix("user"))))) { cfg =>
       cfg.subconfig("user").lookup[String]("name").map(_.isDefined)
     }
 
-  lazy val propertiesNegativeTest: Task[Prop] =
+  lazy val propertiesNegativeTest: IO[Prop] =
     withLoad(List(Required(SysPropsResource(Prefix("user"))))) { cfg =>
       cfg.lookup[String]("path.separator").map(_.isEmpty)
     }
 
-  lazy val fallbackTest: Task[Prop] =
+  lazy val fallbackTest: IO[Prop] =
     withLoad(List(Required(
       ClassPathResource("foobar.cfg") or
       ClassPathResource("pathological.cfg")))) { _.lookup[Int]("aa").map(_ == Some(1)) }
 
   // Check that there is one error per resource in the chain, plus one
-  lazy val fallbackErrorTest: Task[Prop] =
-    load(List(Required(ClassPathResource("foobar.cfg") or
+  lazy val fallbackErrorTest: IO[Prop] =
+    load[IO](List(Required(ClassPathResource("foobar.cfg") or
                        ClassPathResource("foobar.cfg")))).attempt.map(_.fold(
       e => (e.getMessage.toList.filter(_ == '\n').size == 3),
       a => false
     ))
 
   // Make sure that loading from a fake (but valid) URI fails with an expected error
-  lazy val uriTest: Task[Prop] = {
+  lazy val uriTest: IO[Prop] = {
     import java.net._
-    load(List(Required(
+    load[IO](List(Required(
       URIResource(new URI("http://lolcathost"))))).attempt.map(_.fold(
         {
-          case e: UnknownHostException => true
+          case _: UnknownHostException => true
           case _ => false
         },
         _ => false
@@ -157,19 +157,19 @@ object Test extends Properties("Knobs") {
   }
 
   // Ensure that the resource is *not* available on a new classloader
-  lazy val classLoaderTest: Task[Prop] =
-    load(List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
-      case scalaz.-\/(f: java.io.FileNotFoundException) => true
-      case x => false
+  lazy val classLoaderTest: IO[Prop] =
+    load[IO](List(Required(ClassPathResource("pathological.cfg", new java.net.URLClassLoader(Array.empty))))).attempt.map {
+      case Left(_: java.io.FileNotFoundException) => true
+      case _ => false
     }
 
-  lazy val immutableConfigValueErrorTest: Task[Prop] = {
+  lazy val immutableConfigValueErrorTest: IO[Prop] = {
     sys.props += ("test.immutable.value.error" -> "12345")
     withLoad(List(Required(SysPropsResource(Prefix("test.immutable"))))) {
       mcfg => mcfg.immutable.map(
-        cfg => \/.fromTryCatchNonFatal(cfg.require[String]("test.immutable.value.error")).fold(
+        cfg => Either.catchNonFatal(cfg.require[String]("test.immutable.value.error")).fold(
           {
-            case ValueError(n, v) => true
+            case ValueError(_, _) => true
             case _ => false
           },
           _ => false
@@ -178,13 +178,13 @@ object Test extends Properties("Knobs") {
     }
   }
 
-  lazy val mutableConfigValueErrorTest: Task[Prop] = {
+  lazy val mutableConfigValueErrorTest: IO[Prop] = {
     sys.props += ("test.mutable.value.error" -> "12345")
     withLoad(List(Required(SysPropsResource(Prefix("test.mutable"))))) { cfg =>
       cfg.require[String]("test.mutable.value.error").attempt.map(
         _.fold(
           {
-            case ValueError(n, v) => true
+            case ValueError(_, _) => true
             case _ => false
           },
           _ => false
@@ -193,36 +193,36 @@ object Test extends Properties("Knobs") {
     }
   }
 
-  lazy val allCommentsTest: Task[Prop] =
-    load(List(Required(ClassPathResource("all-comments.cfg")))).attempt.map(_.isRight)
+  lazy val allCommentsTest: IO[Prop] =
+    load[IO](List(Required(ClassPathResource("all-comments.cfg")))).attempt.map(_.isRight)
 
-  property("load-pathological-config") = loadTest.unsafePerformSync
+  property("load-pathological-config") = loadTest.unsafeRunSync
 
-  property("interpolation") = interpTest.unsafePerformSync
+  property("interpolation") = interpTest.unsafeRunSync
 
-  property("import") = importTest.unsafePerformSync
+  property("import") = importTest.unsafeRunSync
 
-  property("import-as-ident") = importAsIdentTest.unsafePerformSync
+  property("import-as-ident") = importAsIdentTest.unsafeRunSync
 
-  property("import-from-env") = importFromEnvTest.unsafePerformSync
+  property("import-from-env") = importFromEnvTest.unsafeRunSync
 
-  property("import-from-env-missing-file") = importFromEnvMissingFileTest.unsafePerformSync
+  property("import-from-env-missing-file") = importFromEnvMissingFileTest.unsafeRunSync
 
-  property("import-from-sys-prop") = importFromSysPropTest.unsafePerformSync
+  property("import-from-sys-prop") = importFromSysPropTest.unsafeRunSync
 
-  property("load-system-properties") = loadPropertiesTest.unsafePerformSync
+  property("load-system-properties") = loadPropertiesTest.unsafeRunSync
 
-  property("system-properties-negative") = propertiesNegativeTest.unsafePerformSync
+  property("system-properties-negative") = propertiesNegativeTest.unsafeRunSync
 
-  property("system-properties-subconfig") = propertiesSubconfigTest.unsafePerformSync
+  property("system-properties-subconfig") = propertiesSubconfigTest.unsafeRunSync
 
-  property("load-fallback-chain") = fallbackTest.unsafePerformSync
+  property("load-fallback-chain") = fallbackTest.unsafeRunSync
 
-  property("fallback-chain-errors") = fallbackErrorTest.unsafePerformSync
+  property("fallback-chain-errors") = fallbackErrorTest.unsafeRunSync
 
-  property("load-uri") = uriTest.unsafePerformSync
+  property("load-uri") = uriTest.unsafeRunSync
 
-  property("classloader") = classLoaderTest.unsafePerformSync
+  property("classloader") = classLoaderTest.unsafeRunSync
 
   property("inifinite duration as finite") = {
     val g = Gen.oneOf(Duration.Inf, Duration.MinusInf, Duration.Undefined)
@@ -236,9 +236,9 @@ object Test extends Properties("Knobs") {
     (Configured[FiniteDuration].apply(cfg): Option[Duration]) ?= Configured[Duration].apply(cfg)
   }
 
-  property("immutable-config-value-error") = immutableConfigValueErrorTest.unsafePerformSync
+  property("immutable-config-value-error") = immutableConfigValueErrorTest.unsafeRunSync
 
-  property("mutable-config-value-error") = mutableConfigValueErrorTest.unsafePerformSync
+  property("mutable-config-value-error") = mutableConfigValueErrorTest.unsafeRunSync
 
-  property("all-comments") = allCommentsTest.unsafePerformSync
+  property("all-comments") = allCommentsTest.unsafeRunSync
 }

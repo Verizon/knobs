@@ -16,21 +16,21 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
+import cats.effect.IO
 import com.typesafe.config.ConfigFactory
-import knobs.compatibility._
 import org.scalacheck.Properties
 
 object TypesafeConfigTest extends Properties("Typesafe") {
 
   property("load-default-config") = {
-    Typesafe.config.map { cfg =>
+    Typesafe.defaultConfig[IO].map { cfg =>
       cfg.lookup[Int]("foo.bar.an_int") == Some(1) &&
       cfg.lookup[String]("foo.bar.a_str") == Some("str") &&
       cfg.lookup[Boolean]("foo.bar.a_bool") == Some(true) &&
       cfg.lookup[List[Int]]("foo.an_int_list") == Some(List(1,2,3)) &&
       cfg.lookup[List[String]]("foo.a_str_list") == Some(List("a","b","c"))
     }
-  }.unsafePerformSync
+  }.unsafeRunSync
 
   property("load-custom-config") = {
     val customCfg = ConfigFactory.parseString(
@@ -46,12 +46,12 @@ object TypesafeConfigTest extends Properties("Typesafe") {
         |}
       """.stripMargin)
 
-      Typesafe.config(customCfg).map { cfg =>
+      Typesafe.config[IO](customCfg).map { cfg =>
         cfg.lookup[Int]("baz.qux.an_int") == Some(2) &&
         cfg.lookup[String]("baz.qux.a_str") == Some("rts") &&
         cfg.lookup[Boolean]("baz.qux.a_bool") == Some(false) &&
         cfg.lookup[List[Int]]("baz.an_int_list") == Some(List(4,5,6)) &&
         cfg.lookup[List[String]]("baz.a_str_list") == Some(List("d","e","f"))
       }
-  }.unsafePerformSync
+  }.unsafeRunSync
 }

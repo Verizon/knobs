@@ -22,12 +22,14 @@ import java.nio.file.{ FileSystems, Path => P}
 import java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
 import java.util.concurrent.{ Executors, ThreadFactory }
 import scala.collection.JavaConverters._
-import scalaz._
-import scalaz.syntax.show._
-import scalaz.concurrent.Task
-import scalaz.stream._
-import scalaz.stream.async.mutable.Topic
-import scalaz.stream.merge.mergeN
+
+import cats.Show
+import cats.data.NonEmptyVector
+import cats.effect.{Async, Effect, Sync}
+import cats.implicits._
+import fs2.Stream
+
+import scala.concurrent.ExecutionContext
 
 /** Resources from which configuration files can be loaded */
 trait Resource[R] extends Show[R] {
@@ -42,13 +44,13 @@ trait Resource[R] extends Show[R] {
   def resolve(r: R, child: Path): R
 
   /**
-   * Loads a resource, returning a list of config directives in `Task`.
+   * Loads a resource, returning a list of config directives in `IO`.
    */
-  def load(path: Worth[R]): Task[List[Directive]]
+  def load[F[_]](path: Worth[R])(implicit F: Sync[F]): F[List[Directive]]
 }
 
 trait Watchable[R] extends Resource[R] {
-  def watch(path: Worth[R]): Task[(List[Directive], Process[Task, Unit])]
+  def watch[F[_]](path: Worth[R])(implicit F: Effect[F]): F[(List[Directive], Stream[F, Unit])]
 }
 
 /** An existential resource. Equivalent to the (Haskell-style) type `exists r. Resource r ⇒ r` */
@@ -80,7 +82,7 @@ object ResourceBox {
   def apply[R:Resource](r: R) = Resource.box(r)
 
   implicit def resourceBoxShow: Show[ResourceBox] = new Show[ResourceBox] {
-    override def shows(b: ResourceBox): String = b.R.shows(b.resource)
+    override def show(b: ResourceBox): String = b.R.show(b.resource)
   }
 }
 
@@ -91,13 +93,16 @@ object FileResource {
    * Optionally creates a process to watch changes to the file and
    * reload any `MutableConfig` if it has changed.
    */
-  def apply(f: File, watched: Boolean = true): ResourceBox = Watched(f.getCanonicalFile)
+  def apply(f: File, watched: Boolean = true)(implicit ec: ExecutionContext): ResourceBox = {
+    val _ = watched
+    Watched(f.getCanonicalFile)
+  }
 
   /**
    * Creates a new resource that loads a configuration from a file.
    * Does not watch the file for changes or reload the config automatically.
    */
-  def unwatched(f: File): ResourceBox = Resource.box(f.getCanonicalFile)
+  def unwatched(f: File)(implicit ec: ExecutionContext): ResourceBox = Resource.box(f.getCanonicalFile)
 }
 
 object ClassPathResource {
@@ -129,15 +134,15 @@ object URIResource {
 import java.nio.file.{WatchService,WatchEvent}
 
 object Resource {
-  type FallbackChain = OneAnd[Vector, ResourceBox]
-  def pool(name: String) = Executors.newCachedThreadPool(new ThreadFactory {
+  type FallbackChain = NonEmptyVector[ResourceBox]
+  def pool(name: String) = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool(new ThreadFactory {
     def newThread(r: Runnable) = {
       val t = Executors.defaultThreadFactory.newThread(r)
       t.setDaemon(true)
       t.setName(name)
       t
     }
-  })
+  }))
 
   // Thread pool for asynchronously watching config files
   val watchPool = pool("knobs-watch-service-pool")
@@ -146,11 +151,9 @@ object Resource {
   val notificationPool = pool("knobs-notification-pool")
 
   private val watchService: WatchService = FileSystems.getDefault.newWatchService
-  private val watchProcess: Process[Task, WatchEvent[_]] =
-    Process.eval(Task(watchService.take)(watchPool)).flatMap(s =>
-      Process.emitAll(s.pollEvents.asScala)).repeat
-  private val watchTopic: Topic[WatchEvent[_]] =
-    async.topic(watchProcess)(scalaz.concurrent.Strategy.Executor(watchPool))
+  private def watchStream[F[_]](implicit F: Async[F]): Stream[F, WatchEvent[_]] =
+    Stream.eval(F.shift(watchPool) *> F.delay(watchService.take)).flatMap(s =>
+      Stream.emits(s.pollEvents.asScala)).repeat
 
   /** Construct a new boxed resource from a valid `Resource` */
   def apply[B](r: B)(implicit B: Resource[B]): ResourceBox = box(r)
@@ -175,34 +178,36 @@ object Resource {
 
   /**
    * Convenience method for loading a file-like resource.
-   * `load` is a `Task` that does the work of turning the resource into a `String`
+   * `load` is a `IO` that does the work of turning the resource into a `String`
    * that gets parsed by the `ConfigParser`.
    */
-  def loadFile[R:Resource](path: Worth[R], load: Task[String]): Task[List[Directive]] = {
+  def loadFile[F[_], R:Resource](path: Worth[R], load: F[String])(implicit F: Sync[F]): F[List[Directive]] = {
     import ConfigParser.ParserOps
     for {
       es <- load.attempt
       r <- es.fold(ex =>
         path match {
-          case Required(_) => Task.fail(ex)
-          case _ => Task.now(Nil)
+          case Required(_) => F.raiseError(ex)
+          case _ => F.pure(Nil)
         }, s => for {
-          p <- Task.delay(ConfigParser.topLevel.parse(s)).attempt.flatMap {
-            case -\/(ConfigError(_, err)) =>
-              Task.fail(ConfigError(path.worth, err))
-            case -\/(e) => Task.fail(e)
-            case \/-(a) => Task.now(a)
+          p <- F.delay(ConfigParser.topLevel.parse(s)).attempt.flatMap[Either[String, List[Directive]]] {
+            case Left(ConfigError(_, err)) =>
+              F.raiseError(ConfigError(path.worth, err))
+            case Left(e)  => F.raiseError(e)
+            case Right(a) => F.pure(a)
           }
-          r <- p.fold(err => Task.fail(ConfigError(path.worth, err)),
-                      ds => Task.now(ds))
+          r <- p.fold[F[List[Directive]]](
+            err => F.raiseError(ConfigError(path.worth, err)),
+            ds  => F.pure(ds)
+          )
         } yield r)
     } yield r
   }
 
-  def failIfNone[A](a: Option[A], msg: String): Task[A] =
-    a.map(Task.now).getOrElse(Task.fail(new RuntimeException(msg)))
+  def failIfNone[F[_], A](a: Option[A], msg: String)(implicit F: Sync[F]): F[A] =
+    a.map(F.pure).getOrElse(F.raiseError(new RuntimeException(msg)))
 
-  def watchEvent(path: P): Task[Process[Task, WatchEvent[_]]] = {
+  def watchEvent[F[_]](path: P)(implicit F: Async[F]): F[Stream[F, WatchEvent[_]]] = {
     val dir =
       failIfNone(Option(path.getParent),
                  s"File $path has no parent directory. Please provide a canonical file name.")
@@ -212,31 +217,32 @@ object Resource {
 
     for {
       d <- dir
-      _ <- Task.delay(d.register(watchService, ENTRY_MODIFY))
+      _ <- F.delay(d.register(watchService, ENTRY_MODIFY))
       f <- file
-    } yield watchTopic.subscribe.filter(_.context == f)
+    } yield watchStream.filter(_.context == f)
   }
 
-  implicit def fileResource: Watchable[File] = new Watchable[File] {
-    import scalaz.syntax.traverse._
-    import scalaz.std.list._
+  implicit def fileResource(implicit ec: ExecutionContext): Watchable[File] = new Watchable[File] {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
-    def load(path: Worth[File]) =
-      loadFile(path, Task.delay(scala.io.Source.fromFile(path.worth).mkString))
-    override def shows(r: File) = r.toString
-    def watch(path: Worth[File]) = for {
+
+    def load[F[_]](path: Worth[File])(implicit F: Sync[F]) =
+      loadFile(path, F.delay(scala.io.Source.fromFile(path.worth).mkString))
+
+    override def show(r: File) = r.toString
+
+    def watch[F[_]](path: Worth[File])(implicit F: Effect[F]) = for {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
-      es <- (path.worth +: rs).traverse(f => watchEvent(f.toPath))
-    } yield (ds, mergeN(Process.emitAll(es.map(_.map(_ => ())))))
+      es <- (path.worth :: rs).traverse(f => watchEvent(f.toPath))
+    } yield (ds, Stream.emits(es.map(_.map(_ => ()))).joinUnbounded)
   }
 
   implicit def uriResource: Resource[URI] = new Resource[URI] {
     def resolve(r: URI, child: String): URI = r resolve new URI(child)
-    def load(path: Worth[URI]) =
-      loadFile(path, Task.delay(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
-    override def shows(r: URI) = r.toString
+    def load[F[_]](path: Worth[URI])(implicit F: Sync[F]) =
+      loadFile(path, F.delay(scala.io.Source.fromURL(path.worth.toURL).mkString + "\n"))
+    override def show(r: URI) = r.toString
   }
 
   final case class ClassPath(s: String, loader: ClassLoader)
@@ -244,14 +250,14 @@ object Resource {
   implicit def classPathResource: Resource[ClassPath] = new Resource[ClassPath] {
     def resolve(r: ClassPath, child: String) =
       ClassPath(resolveName(r.s, child), r.loader)
-    def load(path: Worth[ClassPath]) = {
+    def load[F[_]](path: Worth[ClassPath])(implicit F: Sync[F]) = {
       val r = path.worth
-      loadFile(path, Task.delay(r.loader.getResourceAsStream(r.s)) flatMap { x =>
-        if (x == null) Task.fail(new java.io.FileNotFoundException(r.s + " not found on classpath"))
-        else Task.delay(scala.io.Source.fromInputStream(x).mkString)
+      loadFile(path, F.delay(r.loader.getResourceAsStream(r.s)) flatMap { x =>
+        if (x == null) F.raiseError(new java.io.FileNotFoundException(r.s + " not found on classpath"))
+        else F.delay(scala.io.Source.fromInputStream(x).mkString)
       })
     }
-    override def shows(r: ClassPath) = {
+    override def show(r: ClassPath) = {
       val res = r.loader.getResource(r.s)
       if (res == null)
         s"missing classpath resource ${r.s}"
@@ -266,51 +272,50 @@ object Resource {
       case Exact(s) => Exact(s"$p.$s")
       case Prefix(s) => Prefix(s"$p.$s")
     }
-    def load(path: Worth[Pattern]) = {
+    def load[F[_]](path: Worth[Pattern])(implicit F: Sync[F]) = {
       val pat = path.worth
       for {
-        ds <- Task.delay(sys.props.toMap.filterKeys(pat matches _).map {
+        ds <- F.delay(sys.props.toMap.filterKeys(pat matches _).map {
                    case (k, v) => Bind(k, ConfigParser.value.parse(v).toOption.getOrElse(CfgText(v)))
                  })
         r <- (ds.isEmpty, path) match {
           case (true, Required(_)) =>
-            Task.fail(new ConfigError(path.worth, s"Required system properties $pat not present."))
-          case _ => Task.now(ds.toList)
+            F.raiseError(new ConfigError(path.worth, s"Required system properties $pat not present."))
+          case _ => F.pure(ds.toList)
         }
       } yield r
     }
-    override def shows(r: Pattern): String = s"System properties $r.*"
+    override def show(r: Pattern): String = s"System properties $r.*"
   }
 
   implicit def fallbackResource: Resource[FallbackChain] = new Resource[FallbackChain] {
     def resolve(p: FallbackChain, child: String) = {
-      val OneAnd(a, as) = p
-      OneAnd(box(a.R.resolve(a.resource, child))(a.R), as.map(b =>
+      val a = p.head
+      val as = p.tail
+      NonEmptyVector(box(a.R.resolve(a.resource, child))(a.R), as.map(b =>
         box(b.R.resolve(b.resource, child))(b.R)
       ))
     }
-    import \/._
-    def load(path: Worth[FallbackChain]) = {
-      def loadReq(r: ResourceBox, f: Throwable => Task[String \/ List[Directive]]) =
-        r.R.load(Required(r.resource)).attempt.flatMap(_.fold(f, a => Task.now(right(a))))
+
+    def load[F[_]](path: Worth[FallbackChain])(implicit F: Sync[F]) = {
+      def loadReq(r: ResourceBox, f: Throwable => F[Either[String, List[Directive]]]): F[Either[String, List[Directive]]] =
+        r.R.load(Required(r.resource)).attempt.flatMap(_.fold(f, a => F.pure(Right(a))))
       def formatError(r: ResourceBox, e: Throwable) =
         s"${r.R.show(r.resource)}: ${e.getMessage}"
-      def orAccum(r: ResourceBox, t: Task[String \/ List[Directive]]) =
+      def orAccum(r: ResourceBox, t: F[Either[String, List[Directive]]]) =
         loadReq(r, e1 => t.map(_.leftMap(e2 => s"\n${formatError(r, e1)}$e2")))
-      val OneAnd(r, rs) = path.worth
-      (r +: rs).foldRight(
+      path.worth.toVector.foldRight[F[Either[String, List[Directive]]]](
         if (path.isRequired)
-          Task.now(left(s"\nKnobs failed to load ${path.worth.show}"))
+          F.pure(Left(s"\nKnobs failed to load ${path.worth.show}"))
         else
-          Task.now(right(List[Directive]()))
+          F.pure(Right(List[Directive]()))
       )(orAccum).flatMap(_.fold(
-        e => Task.fail(ConfigError(path.worth, e)),
-        Task.now(_)
+        e => F.raiseError(ConfigError(path.worth, e)),
+        F.pure(_)
       ))
     }
-    override def shows(r: FallbackChain) = {
-      val OneAnd(a, as) = r
-      (a +: as).map(_.show).mkString(" or ")
+    override def show(r: FallbackChain) = {
+      r.toVector.map(_.show).mkString(" or ")
     }
   }
 
@@ -318,7 +323,7 @@ object Resource {
    * Returns a resource that tries `r1`, and if it fails, falls back to `r2`
    */
   def or[R1: Resource, R2: Resource](r1: R1, r2: R2): FallbackChain =
-    OneAnd(box(r1), Vector(box(r2)))
+    NonEmptyVector(box(r1), Vector(box(r2)))
 
   implicit class ResourceOps[R:Resource](r: R) {
     def or[R2:Resource](r2: R2) = Resource.or(r, r2)

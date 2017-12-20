@@ -16,17 +16,16 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import org.apache.curator.test._
-import org.scalacheck._
-import org.scalacheck.Prop._
-import scalaz.concurrent.Task
 import Resource._
-import org.apache.zookeeper._
-import org.apache.curator.framework.api._
+import cats.effect.IO
+import fs2.async.Ref
+import java.util.concurrent.CountDownLatch
 import org.apache.curator.framework._
 import org.apache.curator.retry._
-import java.util.concurrent.CountDownLatch
-import compatibility._
+import org.apache.curator.test._
+import org.scalacheck.Prop._
+import org.scalacheck._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object ZooKeeperTests extends Properties("ZooKeeper") {
 
@@ -41,8 +40,8 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     val c = CuratorFrameworkFactory.newClient(loc, retryPolicy)
     c.start
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
-    val n = load(List(ZNode(c, "/knobs.cfg").required)).flatMap(cfg =>
-      cfg.require[Int]("foo")).unsafePerformSync
+    val n = load[IO](List(ZNode(c, "/knobs.cfg").required)).flatMap(cfg =>
+      cfg.require[Int]("foo")).unsafeRunSync
     c.close
     server.close
     n == 10
@@ -57,20 +56,20 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
     val latch = new CountDownLatch(1)
     val prg = for {
-      ref <- IORef(0)
-      cfg <- load(List(Required(Watched(ZNode(c, "/knobs.cfg")))))
+      ref <- Ref[IO, Int](0)
+      cfg <- load[IO](List(Required(Watched(ZNode(c, "/knobs.cfg")))))
       n1 <- cfg.require[Int]("foo")
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(CfgNumber(n))) =>
-          ref.write(n.toInt).flatMap(_ => Task.delay(latch.countDown))
-        case _ => Task.delay(latch.countDown)
+          ref.setSync(n.toInt).flatMap(_ => IO(latch.countDown))
+        case _ => IO(latch.countDown)
       })
-      _ <- Task.delay(Thread.sleep(1000))
-      _ <- Task.delay(c.setData.forPath("/knobs.cfg", "foo = 20\n".toArray.map(_.toByte)))
-      _ <- Task.delay(latch.await)
-      n2 <- ref.read
+      _ <- IO(Thread.sleep(1000))
+      _ <- IO(c.setData.forPath("/knobs.cfg", "foo = 20\n".toArray.map(_.toByte)))
+      _ <- IO(latch.await)
+      n2 <- ref.get
     } yield n1 == 10 && n2 == 20
-    val r = prg.unsafePerformSync
+    val r = prg.unsafeRunSync
     c.close
     server.close
     r

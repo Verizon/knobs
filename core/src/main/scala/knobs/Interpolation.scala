@@ -16,7 +16,7 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-sealed trait Interpolation
-case class Literal(text: String) extends Interpolation
-case class Interpolate(text: String) extends Interpolation
+sealed abstract class Interpolation extends Product with Serializable
+final case class Literal(text: String) extends Interpolation
+final case class Interpolate(text: String) extends Interpolation
 

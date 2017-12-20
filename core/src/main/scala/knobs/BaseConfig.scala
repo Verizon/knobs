@@ -16,34 +16,37 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.concurrent.Task
+import cats._
+import cats.effect.Effect
+import cats.implicits._
+import fs2.async.Ref
 
 /**
  * Global configuration data. This is the top-level config from which
  * `Config` values are derived by choosing a root location.
  */
-case class BaseConfig(paths: IORef[List[(Name, KnobsResource)]],
-                      cfgMap: IORef[Env],
-                      subs: IORef[Map[Pattern, List[ChangeHandler]]]) {
+case class BaseConfig[F[_]](paths: Ref[F, List[(Name, KnobsResource)]],
+                      cfgMap: Ref[F, Env],
+                      subs: Ref[F, Map[Pattern, List[ChangeHandler[F]]]]) {
 
   /**
    * Get the `MutableConfig` at the given root location.
    */
-  def mutableAt(root: String): MutableConfig =
+  def mutableAt(root: String): MutableConfig[F] =
     MutableConfig("", this).subconfig(root)
 
   /**
    * Get the `Config` at the given root location
    */
-  def at(root: String): Task[Config] =
-    cfgMap.read.map(Config(_).subconfig(root))
+  def at(root: String)(implicit F: Functor[F]): F[Config] =
+    cfgMap.get.map(Config(_).subconfig(root))
 
-  lazy val reload: Task[Unit] = for {
-    ps <- paths.read
+  def reload(implicit F: Effect[F]): F[Unit] = for {
+    ps <- paths.get
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
-    m  <- cfgMap.atomicModify(m => (mp, m))
-    s  <- subs.read
-    _ <- notifySubscribers(m, mp, s)
+    m  <- cfgMap.modify2(m => (mp, m))
+    s  <- subs.get
+    _ <- notifySubscribers(m._2, mp, s)
   } yield ()
 }
 

@@ -16,12 +16,10 @@
 //: ----------------------------------------------------------------------------
 package knobs
 
-import scalaz.syntax.traverse._
-import scalaz.syntax.applicative._
-import scalaz.std.list._
-import scalaz.std.option._
-import scalaz.{Monad,\/}
-import concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.{Duration, FiniteDuration}
+
+import cats.Monad
+import cats.implicits._
 
 /**
  * The class of types that can be automatically and safely
@@ -35,18 +33,34 @@ trait Configured[A] {
 object Configured {
 
   // second parameter (of any non-Unit) is required to get around SAM-derived ambiguities
-  def apply[A](implicit A: Configured[A], T: Trivial): Configured[A] = A
+  def apply[A](implicit A: Configured[A], T: Trivial): Configured[A] = {
+    val _ = T
+    A
+  }
 
   def apply[A](f: CfgValue => Option[A]): Configured[A] = new Configured[A] {
     def apply(v: CfgValue) = f(v)
   }
 
   implicit val configuredMonad: Monad[Configured] = new Monad[Configured] {
-    def point[A](a: => A) = new Configured[A] {
+    def pure[A](a: A) = new Configured[A] {
       def apply(v: CfgValue) = Some(a)
     }
-    def bind[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
+
+    def flatMap[A,B](ca: Configured[A])(f: A => Configured[B]) = new Configured[B] {
       def apply(v: CfgValue) = ca(v).flatMap(f(_)(v))
+    }
+
+    // Adapted from https://github.com/circe/circe/blob/master/modules/core/shared/src/main/scala/io/circe/Decoder.scala#L868-L877
+    def tailRecM[A, B](a: A)(f: A => Configured[Either[A, B]]): Configured[B] = new Configured[B] {
+      @annotation.tailrec
+      private[this] def step(v: CfgValue, a: A): Option[B] = f(a)(v) match {
+        case None           => None
+        case Some(Left(a1)) => step(v, a1)
+        case Some(Right(b)) => Some(b)
+      }
+
+      def apply(v: CfgValue): Option[B] = step(v, a)
     }
   }
 
@@ -107,7 +121,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B]
   ): Configured[(A, B)] = new Configured[(A, B)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: Nil) => (A(a) |@| B(b))((_, _))
+      case CfgList(a :: b :: Nil) => (A(a), B(b)).mapN((_, _))
       case _ => None
     }
   }
@@ -116,7 +130,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B], C: Configured[C]
   ): Configured[(A, B, C)] = new Configured[(A, B, C)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: c :: Nil) => (A(a) |@| B(b) |@| C(c))((_, _, _))
+      case CfgList(a :: b :: c :: Nil) => (A(a), B(b), C(c)).mapN((_, _, _))
       case _ => None
     }
   }
@@ -125,8 +139,7 @@ object Configured {
     implicit A: Configured[A], B: Configured[B], C: Configured[C], D: Configured[D]
   ): Configured[(A, B, C, D)] = new Configured[(A, B, C, D)] {
     def apply(v: CfgValue) = v match {
-      case CfgList(a :: b :: c :: d :: Nil) =>
-        ((A(a) |@| B(b) |@| C(c) |@| D(d)))((_, _, _, _))
+      case CfgList(a :: b :: c :: d :: Nil) => (A(a), B(b), C(c), D(d)).mapN((_, _, _, _))
       case _ => None
     }
   }
