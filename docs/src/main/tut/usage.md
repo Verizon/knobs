@@ -14,7 +14,9 @@ First you need to add the dependency for Knobs to your `build.scala` or your `bu
 libraryDependencies += "io.verizon.knobs" %% "core" % "x.x.+"
 ````
 
-Where `x.x` is the desired Knobs version. (Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).)
+Where `x.x` is the desired Knobs version.  Knobs follows traditional [semantic versioning](semver).  Check for the latest release [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.verizon.knobs%22).
+
+[semver]: https://semver.org/
 
 Once you have the dependency added to your project and SBT `update` has downloaded the JAR, you're ready to start adding configuration knobs to your project!
 
