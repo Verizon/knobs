@@ -4,7 +4,7 @@ resolvers ++= Seq(
 
 libraryDependencies ++= {
   Seq(
-    "co.fs2"            %% "fs2-core" % "0.10.0-M11",
+    "co.fs2"            %% "fs2-core" % "0.10.0",
     "io.verizon.ermine" %% "parser"   % "0.5.8"
   )
 }
