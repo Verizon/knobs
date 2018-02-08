@@ -108,7 +108,7 @@ package object knobs {
         s <- Ref(Map[Pattern, List[ChangeHandler[F]]]())
         bc = BaseConfig(paths = p, cfgMap = m, subs = s)
         ticks = Stream.emits(loaded.values.map(_._2).toSeq).joinUnbounded
-        _ <- F.delay(F.runAsync(ticks.evalMap(_ => bc.reload).run)(_ => IO.unit).unsafeRunSync)
+        _ <- F.delay(F.runAsync(ticks.evalMap(_ => bc.reload).compile.drain)(_ => IO.unit).unsafeRunSync)
       } yield bc
     }
 
