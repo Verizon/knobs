@@ -19,6 +19,7 @@ package knobs
 import org.scalacheck._
 import Prop._
 import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 
 import cats.effect.IO
 import cats.implicits._

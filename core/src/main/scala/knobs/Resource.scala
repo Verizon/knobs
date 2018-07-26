@@ -25,7 +25,7 @@ import scala.collection.JavaConverters._
 
 import cats.Show
 import cats.data.NonEmptyVector
-import cats.effect.{Async, Effect, Sync}
+import cats.effect.{Async, Sync, Concurrent}
 import cats.implicits._
 import fs2.Stream
 
@@ -50,7 +50,7 @@ trait Resource[R] extends Show[R] {
 }
 
 trait Watchable[R] extends Resource[R] {
-  def watch[F[_]](path: Worth[R])(implicit F: Effect[F]): F[(List[Directive], Stream[F, Unit])]
+  def watch[F[_]](path: Worth[R])(implicit F: Concurrent[F]): F[(List[Directive], Stream[F, Unit])]
 }
 
 /** An existential resource. Equivalent to the (Haskell-style) type `exists r. Resource r ⇒ r` */
@@ -93,7 +93,7 @@ object FileResource {
    * Optionally creates a process to watch changes to the file and
    * reload any `MutableConfig` if it has changed.
    */
-  def apply(f: File, watched: Boolean = true)(implicit ec: ExecutionContext): ResourceBox = {
+  def apply(f: File, watched: Boolean = true): ResourceBox = {
     val _ = watched
     Watched(f.getCanonicalFile)
   }
@@ -102,7 +102,7 @@ object FileResource {
    * Creates a new resource that loads a configuration from a file.
    * Does not watch the file for changes or reload the config automatically.
    */
-  def unwatched(f: File)(implicit ec: ExecutionContext): ResourceBox = Resource.box(f.getCanonicalFile)
+  def unwatched(f: File): ResourceBox = Resource.box(f.getCanonicalFile)
 }
 
 object ClassPathResource {
@@ -147,12 +147,9 @@ object Resource {
   // Thread pool for asynchronously watching config files
   val watchPool = pool("knobs-watch-service-pool")
 
-  // Thread pool for notifying subcribers of changes to mutable configs
-  val notificationPool = pool("knobs-notification-pool")
-
   private val watchService: WatchService = FileSystems.getDefault.newWatchService
   private def watchStream[F[_]](implicit F: Async[F]): Stream[F, WatchEvent[_]] =
-    Stream.eval(F.shift(watchPool) *> F.delay(watchService.take)).flatMap(s =>
+    Stream.eval(Async.shift[F](watchPool) *> F.delay(watchService.take)).flatMap(s =>
       Stream.emits(s.pollEvents.asScala)).repeat
 
   /** Construct a new boxed resource from a valid `Resource` */
@@ -222,7 +219,7 @@ object Resource {
     } yield watchStream.filter(_.context == f)
   }
 
-  implicit def fileResource(implicit ec: ExecutionContext): Watchable[File] = new Watchable[File] {
+  implicit def fileResource: Watchable[File] = new Watchable[File] {
     def resolve(r: File, child: String): File =
       new File(resolveName(r.getPath, child))
 
@@ -231,7 +228,7 @@ object Resource {
 
     override def show(r: File) = r.toString
 
-    def watch[F[_]](path: Worth[File])(implicit F: Effect[F]) = for {
+    def watch[F[_]](path: Worth[File])(implicit F: Concurrent[F]) = for {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
       es <- (path.worth :: rs).traverse(f => watchEvent(f.toPath))

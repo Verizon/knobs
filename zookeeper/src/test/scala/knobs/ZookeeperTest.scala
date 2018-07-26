@@ -18,7 +18,7 @@ package knobs
 
 import Resource._
 import cats.effect.IO
-import fs2.async.Ref
+import cats.effect.concurrent.Ref
 import java.util.concurrent.CountDownLatch
 import org.apache.curator.framework._
 import org.apache.curator.retry._
@@ -56,12 +56,12 @@ object ZooKeeperTests extends Properties("ZooKeeper") {
     c.create.forPath("/knobs.cfg", "foo = 10\n".toArray.map(_.toByte))
     val latch = new CountDownLatch(1)
     val prg = for {
-      ref <- Ref[IO, Int](0)
+      ref <- Ref.of[IO, Int](0)
       cfg <- load[IO](List(Required(Watched(ZNode(c, "/knobs.cfg")))))
       n1 <- cfg.require[Int]("foo")
       _ <- cfg.subscribe(Exact("foo"), {
         case ("foo", Some(CfgNumber(n))) =>
-          ref.setSync(n.toInt).flatMap(_ => IO(latch.countDown))
+          ref.set(n.toInt).flatMap(_ => IO(latch.countDown))
         case _ => IO(latch.countDown)
       })
       _ <- IO(Thread.sleep(1000))
