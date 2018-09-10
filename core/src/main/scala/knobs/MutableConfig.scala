@@ -17,12 +17,11 @@
 package knobs
 
 import cats._
-import cats.effect.{Effect, Sync}
+import cats.effect.{Effect, Sync, Concurrent, ConcurrentEffect}
 import cats.implicits._
 import fs2.Stream
-import fs2.async.signalOf
+import fs2.concurrent.SignallingRef
 
-import scala.concurrent.ExecutionContext
 
 /** Mutable, reloadable, configuration data */
 case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
@@ -41,23 +40,23 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * just the local section. Any overridden properties set with `addProperties`
    * will disappear.
    */
-  def reload(implicit F: Effect[F]): F[Unit] = base.reload
+  def reload(implicit F: ConcurrentEffect[F]): F[Unit] = base.reload
 
   /**
    * Add additional files to this `MutableConfig`, causing it to be reloaded to
    * add their contents.
    */
-  def add(paths: List[KnobsResource])(implicit F: Effect[F]): F[Unit] =
+  def add(paths: List[KnobsResource])(implicit F: ConcurrentEffect[F]): F[Unit] =
     addGroups(paths.map(x => ("", x)))
 
   /**
    * Add additional files to named groups in this `MutableConfig`, causing it to be
    * reloaded to add their contents.
    */
-  def addGroups(paths: List[(Name, KnobsResource)])(implicit F: Effect[F]): F[Unit] = {
+  def addGroups(paths: List[(Name, KnobsResource)])(implicit F: ConcurrentEffect[F]): F[Unit] = {
     def fix[A](p: (String, A)) = (addDot(p._1), p._2)
     for {
-      _ <- base.paths.modify(prev => prev ++ paths.map(fix))
+      _ <- base.paths.update(prev => prev ++ paths.map(fix))
       _ <- base.reload
     } yield ()
   }
@@ -68,11 +67,11 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * will be lost.
    */
   def addEnv(props: Env)(implicit F: Effect[F]): F[Unit] = for {
-    p <- base.cfgMap.modify2 { m =>
+    p <- base.cfgMap.modify { m =>
       val mp = m ++ props.map { case (k, v) => (root + k, v) }
       (mp, (m, mp))
     }
-    (_, (m, mp)) = p
+    (m, mp) = p
     subs <- base.subs.get
     _ <- notifySubscribers(m, mp, subs)
   } yield ()
@@ -156,20 +155,20 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * Subscribe to notifications. The given handler will be invoked when any
    * change occurs to a configuration property that matches the pattern.
    */
-  def subscribe(p: Pattern, h: ChangeHandler[F])(implicit F: Apply[F]): F[Unit] =
-    base.subs.modify { map =>
+  def subscribe(p: Pattern, h: ChangeHandler[F]): F[Unit] =
+    base.subs.update { map =>
       map.get(p.local(root)) match {
         case None           => map + ((p.local(root), List(h)))
         case Some(existing) => map + ((p.local(root), existing ++ List(h)))
       }
-    }.void
+    }
 
   /**
    * A process that produces chages to the configuration properties that match
    * the given pattern
    */
-  def changes(p: Pattern)(implicit F: Effect[F], ec: ExecutionContext): Stream[F, (Name, Option[CfgValue])] = {
-    val signal = signalOf[F, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
+  def changes(p: Pattern)(implicit F: Concurrent[F]): Stream[F, (Name, Option[CfgValue])] = {
+    val signal = SignallingRef[F, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
 
     Stream.eval {
       for {

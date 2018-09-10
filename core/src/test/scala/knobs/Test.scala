@@ -18,10 +18,13 @@ package knobs
 
 import org.scalacheck._
 import Prop._
-import scala.concurrent.duration._
 
+import scala.concurrent.duration._
 import cats.effect.IO
 import cats.implicits._
+
+import scala.concurrent.ExecutionContext
+
 
 object Test extends Properties("Knobs") {
 
@@ -29,6 +32,8 @@ object Test extends Properties("Knobs") {
   // https://github.com/rickynils/scalacheck/pull/284
   private implicit val arbFiniteDuration: Arbitrary[FiniteDuration] = Arbitrary(
     Gen.chooseNum(Long.MinValue + 1, Long.MaxValue).map(Duration.fromNanos))
+
+  implicit val cs = IO.contextShift(ExecutionContext.global)
 
   def withLoad[A](files: List[KnobsResource])(
     t: MutableConfig[IO] => IO[A]): IO[A] = for {

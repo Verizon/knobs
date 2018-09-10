@@ -22,11 +22,10 @@ import org.apache.curator.retry._
 import org.apache.zookeeper.WatchedEvent
 import org.apache.zookeeper.Watcher.Event.EventType._
 
-import scala.concurrent.ExecutionContext
-
-import cats.effect.{Async, Effect, Sync}
+import cats.effect.{Async, Sync, ConcurrentEffect, Concurrent}
 import cats.implicits._
 import fs2.Stream
+
 
 /**
  * A ZNode contains a `path` to a node in the ZooKeeper tree
@@ -56,7 +55,7 @@ object ZooKeeper {
       } catch { case e: Exception => k(Left(e)) }
     }).repeat
 
-  implicit def zkResource(implicit ec: ExecutionContext): Watchable[ZNode] = new Watchable[ZNode] {
+  implicit def zkResource: Watchable[ZNode] = new Watchable[ZNode] {
     def resolve(r: ZNode, child: Path): ZNode =
       r.copy(path = Resource.resolveName(r.path, child))
     def load[F[_]](node: Worth[ZNode])(implicit F: Sync[F]) = {
@@ -65,18 +64,18 @@ object ZooKeeper {
         new String(c.getData.forPath(path).map(_.toChar))
       })
     }
-    def watch[F[_]](node: Worth[ZNode])(implicit F: Effect[F]) = for {
+    def watch[F[_]](node: Worth[ZNode])(implicit F: Concurrent[F]) = for {
       ds <- load(node)
       rs <- recursiveImports(node.worth, ds)
       reloads <- F.delay { Stream.emits(node.worth +: rs).map {
         case ZNode(c, path) => watchEvent(c, path).map(_ => ())
       }}
-    } yield (ds, reloads.joinUnbounded)
+    } yield (ds, reloads.parJoinUnbounded)
 
     def show(t: ZNode): String = t.toString
   }
 
-  private def doZK[F[_]](config: List[KnobsResource])(implicit F: Effect[F], ec: ExecutionContext): F[(ResourceBox, CuratorFramework)] = {
+  private def doZK[F[_]](config: List[KnobsResource])(implicit F: ConcurrentEffect[F]): F[(ResourceBox, CuratorFramework)] = {
 
     val retryPolicy = new ExponentialBackoffRetry(1000, 3)
 
@@ -113,7 +112,7 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def withDefault[F[_]](k: ResourceBox => F[Unit])(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = safe(k)
+  def withDefault[F[_]](k: ResourceBox => F[Unit])(implicit F: ConcurrentEffect[F]): F[Unit] = safe(k)
 
   /**
    * IO-based API. Works just like `withDefault` except it loads configuration from
@@ -130,9 +129,9 @@ object ZooKeeper {
    * } yield () }.run
    * ```
    */
-  def fromResource[F[_]](customConfig: List[KnobsResource])(k: ResourceBox => F[Unit])(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = safe(k, customConfig)
+   def fromResource[F[_]](customConfig: List[KnobsResource])(k: ResourceBox => F[Unit])(implicit F: ConcurrentEffect[F]): F[Unit] = safe(k, customConfig)
 
-  protected def safe[F[_]](k: ResourceBox => F[Unit], config: List[KnobsResource] = null)(implicit F: Effect[F], ec: ExecutionContext): F[Unit] = for {
+  protected def safe[F[_]](k: ResourceBox => F[Unit], config: List[KnobsResource] = null)(implicit F: ConcurrentEffect[F]): F[Unit] = for {
     p <- doZK(config)
     (box, c) = p
     _ <- k(box)
