@@ -17,9 +17,9 @@
 package knobs
 
 import cats._
-import cats.effect.Effect
+import cats.effect.ConcurrentEffect
 import cats.implicits._
-import fs2.async.Ref
+import cats.effect.concurrent.Ref
 
 /**
  * Global configuration data. This is the top-level config from which
@@ -41,12 +41,12 @@ case class BaseConfig[F[_]](paths: Ref[F, List[(Name, KnobsResource)]],
   def at(root: String)(implicit F: Functor[F]): F[Config] =
     cfgMap.get.map(Config(_).subconfig(root))
 
-  def reload(implicit F: Effect[F]): F[Unit] = for {
+  def reload(implicit F: ConcurrentEffect[F]): F[Unit] = for {
     ps <- paths.get
     mp <- loadFiles(ps.map(_._2)).flatMap(flatten(ps, _))
-    m  <- cfgMap.modify2(m => (mp, m))
+    m  <- cfgMap.modify(m => (mp, m))
     s  <- subs.get
-    _ <- notifySubscribers(m._2, mp, s)
+    _ <- notifySubscribers(m, mp, s)
   } yield ()
 }
 

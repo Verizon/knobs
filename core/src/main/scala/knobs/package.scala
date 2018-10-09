@@ -17,8 +17,7 @@
 import cats.effect._
 import cats.implicits._
 import fs2.Stream
-import fs2.async.Ref
-import scala.concurrent.ExecutionContext
+import cats.effect.concurrent.Ref
 
 package object knobs {
   import Resource._
@@ -55,9 +54,8 @@ package object knobs {
    * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def load[F[_]: Effect](files: List[KnobsResource],
-           pool: ExecutionContext = Resource.notificationPool): F[MutableConfig[F]] =
-    loadp(files.map(f => ("", f)), pool).map(MutableConfig("", _))
+  def load[F[_]: ConcurrentEffect](files: List[KnobsResource]): F[MutableConfig[F]] =
+    loadp(files.map(f => ("", f))).map(MutableConfig("", _))
 
   /**
    * Create an immutable `Config` from the contents of the named files. Throws an
@@ -67,22 +65,20 @@ package object knobs {
    * first time they are opened, so you can specify a file name such as
    * `"$(HOME)/myapp.cfg"`.
    */
-  def loadImmutable[F[_]: Effect](files: List[KnobsResource],
-                    pool: ExecutionContext = Resource.notificationPool): F[Config] =
+  def loadImmutable[F[_]: ConcurrentEffect](files: List[KnobsResource]): F[Config] =
     load(files.map(_.map {
       case WatchBox(b, w) => ResourceBox(b)(w)
       case x => x
-    }), pool).flatMap(_.immutable)
+    })).flatMap(_.immutable)
 
   /**
    * Create a `MutableConfig` from the contents of the named files, placing them
    * into named prefixes.
    */
-  def loadGroups[F[_]: Effect](files: List[(Name, KnobsResource)],
-                 pool: ExecutionContext = Resource.notificationPool): F[MutableConfig[F]] =
-    loadp(files, pool).map(MutableConfig("", _))
+  def loadGroups[F[_]: ConcurrentEffect](files: List[(Name, KnobsResource)]): F[MutableConfig[F]] =
+    loadp(files).map(MutableConfig("", _))
 
-  private [knobs] def loadFiles[F[_]: Effect](paths: List[KnobsResource]): F[Loaded[F]] = {
+  private [knobs] def loadFiles[F[_]: ConcurrentEffect](paths: List[KnobsResource]): F[Loaded[F]] = {
     def go(seen: Loaded[F], path: KnobsResource): F[Loaded[F]] = {
       def notSeen(n: KnobsResource): Boolean = seen.get(n).isEmpty
       for {
@@ -98,16 +94,15 @@ package object knobs {
   }
 
   private [knobs] def loadp[F[_]](
-    paths: List[(Name, KnobsResource)],
-    pool: ExecutionContext = Resource.notificationPool)(implicit F: Effect[F]): F[BaseConfig[F]] = {
-      implicit val implicitPool = pool
+    paths: List[(Name, KnobsResource)]
+  )(implicit F: ConcurrentEffect[F]): F[BaseConfig[F]] = {
       for {
         loaded <- loadFiles(paths.map(_._2))
-        p <- Ref(paths)
-        m <- flatten(paths, loaded).flatMap(Ref(_))
-        s <- Ref(Map[Pattern, List[ChangeHandler[F]]]())
+        p <- Ref[F].of(paths)
+        m <- flatten(paths, loaded).flatMap(Ref[F].of(_))
+        s <- Ref[F].of(Map[Pattern, List[ChangeHandler[F]]]())
         bc = BaseConfig(paths = p, cfgMap = m, subs = s)
-        ticks = Stream.emits(loaded.values.map(_._2).toSeq).joinUnbounded
+        ticks = Stream.emits(loaded.values.map(_._2).toSeq).parJoinUnbounded
         _ <- F.delay(F.runAsync(ticks.evalMap(_ => bc.reload).compile.drain)(_ => IO.unit).unsafeRunSync)
       } yield bc
     }
@@ -222,7 +217,7 @@ package object knobs {
       implicitly[Resource[R]].load(Required(r)).flatMap(dds =>
         recursiveImports(r, dds))))
 
-  private [knobs] def loadOne[F[_]: Effect](path: KnobsResource): F[(List[Directive], Stream[F, Unit])] = {
+  private [knobs] def loadOne[F[_]: ConcurrentEffect](path: KnobsResource): F[(List[Directive], Stream[F, Unit])] = {
     val box = path.worth
     val r: box.R = box.resource
     box.watchable match {
