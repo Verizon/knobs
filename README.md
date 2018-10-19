@@ -1,5 +1,8 @@
-Knobs
-=====
+# Knobs has moved
+
+Find knobs at its new home at [getnelson/knobs](https://github.com/getnelson/knobs).
+
+---
 
 ![image](docs/src/site/img/logo.png)
 
