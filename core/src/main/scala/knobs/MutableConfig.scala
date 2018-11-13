@@ -20,7 +20,7 @@ import cats._
 import cats.effect.{Effect, Sync, Concurrent, ConcurrentEffect}
 import cats.implicits._
 import fs2.Stream
-import fs2.async.signalOf
+import fs2.concurrent.SignallingRef
 
 /** Mutable, reloadable, configuration data */
 case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
@@ -167,7 +167,7 @@ case class MutableConfig[F[_]](root: String, base: BaseConfig[F]) {
    * the given pattern
    */
   def changes(p: Pattern)(implicit F: Concurrent[F]): Stream[F, (Name, Option[CfgValue])] = {
-    val signal = signalOf[F, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
+    val signal = SignallingRef[F, (Name, Option[CfgValue])](("", None)) // TP: Not sure about the soundness of this default?
 
     Stream.eval {
       for {

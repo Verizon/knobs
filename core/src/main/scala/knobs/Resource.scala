@@ -232,7 +232,7 @@ object Resource {
       ds <- load(path)
       rs <- recursiveImports(path.worth, ds)
       es <- (path.worth :: rs).traverse(f => watchEvent(f.toPath))
-    } yield (ds, Stream.emits(es.map(_.map(_ => ()))).joinUnbounded)
+    } yield (ds, Stream.emits(es.map(_.map(_ => ()))).parJoinUnbounded)
   }
 
   implicit def uriResource: Resource[URI] = new Resource[URI] {

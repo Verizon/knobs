@@ -17,7 +17,7 @@
 package knobs
 
 import Resource._
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.effect.concurrent.Ref
 import java.util.concurrent.CountDownLatch
 import org.apache.curator.framework._
@@ -25,9 +25,11 @@ import org.apache.curator.retry._
 import org.apache.curator.test._
 import org.scalacheck.Prop._
 import org.scalacheck._
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 object ZooKeeperTests extends Properties("ZooKeeper") {
+
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
   val retryPolicy = new ExponentialBackoffRetry(1000, 3)
 

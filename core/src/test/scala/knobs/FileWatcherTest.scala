@@ -21,11 +21,13 @@ import java.nio.file.{ Files, Paths }
 import java.util.concurrent.CountDownLatch
 import org.scalacheck._
 import org.scalacheck.Prop._
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 
 object FileWatcherTests extends Properties("FileWatch") {
+
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
   property("file watch") = {
     val mutantUri = Thread.currentThread.getContextClassLoader.getResource("mutant.cfg").toURI

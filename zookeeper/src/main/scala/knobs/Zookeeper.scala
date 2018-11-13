@@ -69,7 +69,7 @@ object ZooKeeper {
       reloads <- F.delay { Stream.emits(node.worth +: rs).map {
         case ZNode(c, path) => watchEvent(c, path).map(_ => ())
       }}
-    } yield (ds, reloads.joinUnbounded)
+    } yield (ds, reloads.parJoinUnbounded)
 
     def show(t: ZNode): String = t.toString
   }
