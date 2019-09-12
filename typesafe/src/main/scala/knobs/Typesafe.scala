@@ -37,7 +37,7 @@ import scala.reflect.ClassTag
   * scala> ts.getDuration("dur", java.util.concurrent.TimeUnit.MILLISECONDS)
   * res0: Long = 3000
   * 
-  * scala> val k = knobs.Typesafe.config[IO](ts).unsafePerformSync
+  * scala> val k = knobs.Typesafe.config[IO](ts).unsafeRunSync
   * k: knobs.Config = Config(Map(dur -> CfgText(3 seconds)))
   * 
   * scala> k.lookup[Duration]("dur")
